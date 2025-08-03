@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Typography */
+  --font-primary: 'Poppins', sans-serif;
+
+  /* Color Palette */
+  --color-background: #111111;
+  --color-surface: #1e1e1e;
+  --color-accent: #e4007c; /* Magenta */
+  --color-accent-hover: #ff1a8c;
+
+  --color-text-primary: #f5f5f5;
+  --color-text-secondary: #a0a0a0;
+
+  --color-border: #333333;
+  --color-border-hover: #4d4d4d;
+
+  --color-success: #00f5d4; /* Teal for success states */
+  --color-error: #ff4d4d;
+  --color-warning: #ffcc00;
+
+  /* Spacing & Sizing */
+  --spacing-unit: 8px;
+  --spacing-xs: calc(0.5 * var(--spacing-unit)); /* 4px */
+  --spacing-sm: var(--spacing-unit); /* 8px */
+  --spacing-md: calc(2 * var(--spacing-unit)); /* 16px */
+  --spacing-lg: calc(4 * var(--spacing-unit)); /* 32px */
+  --spacing-xl: calc(8 * var(--spacing-unit)); /* 64px */
+
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 16px;
+
+  --layout-padding: var(--spacing-lg);
+
+  /* Transitions */
+  --transition-fast: all 0.15s ease-in-out;
+  --transition-smooth: all 0.3s ease-in-out;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.4);
+}

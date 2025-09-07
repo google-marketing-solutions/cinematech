@@ -15,12 +15,20 @@
 -->
 <template>
   <div class="character-card">
-    <img
-      v-if="character.image"
-      :src="character.image"
-      alt="Character Image"
-      class="character-image"
-    />
+    <div class="character-image-container">
+      <MediaSlot
+        :media-type="'image'"
+        :data-url="mediaDataUrl"
+        :scene-id="character.characterId || character.name"
+        :is-generating="character.isGeneratingImage"
+        :is-uploading="character.isUploadingImage"
+        :is-deleting="character.isDeletingImage"
+        @generate="$emit('generate')"
+        @delete="$emit('delete-image')"
+        @upload="$emit('upload')"
+        hide-last-frame
+      />
+    </div>
     <div class="character-info">
       <h3>{{ character.name }}</h3>
       <p>{{ character.description }}</p>
@@ -30,14 +38,33 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from 'vue';
 import type { Character } from '@/types';
+import { useMedia } from '@/composables/useMedia';
+import MediaSlot from './MediaSlot.vue';
 
-defineProps<{
-  character: Character;
-}>();
+const props = defineProps({
+  character: {
+    type: Object as () => Character,
+    required: true,
+  },
+});
+
+const { mediaDataUrl, loadMedia } = useMedia();
+
+watch(
+  () => props.character.image,
+  (newImage) => {
+    loadMedia(newImage || '');
+  },
+  { immediate: true }
+);
 
 defineEmits<{
   (e: 'edit'): void;
+  (e: 'generate'): void;
+  (e: 'delete-image'): void;
+  (e: 'upload'): void;
 }>();
 </script>
 
@@ -60,13 +87,65 @@ defineEmits<{
   border-color: var(--color-border-hover);
 }
 
+.character-image-container {
+  position: relative;
+  width: 100%;
+  height: auto;
+  margin: 0 auto var(--spacing-md);
+  aspect-ratio: 16 / 9;
+}
+
 .character-image {
-  width: 100px;
-  height: 100px;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  border-radius: var(--border-radius-md);
+  border: 2px solid var(--color-border);
+}
+
+.delete-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
   border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.character-image-container:hover .delete-button {
+  opacity: 1;
+}
+
+.character-image-placeholder {
+  width: 100%;
+  height: 100%;
+  background-color: #ccc;
+  border-radius: var(--border-radius-md);
   margin: 0 auto var(--spacing-md);
   border: 2px solid var(--color-border);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.generate-button {
+  background-color: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  transition: background-color 0.3s;
 }
 
 .character-info h3 {

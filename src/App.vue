@@ -19,8 +19,8 @@ import { computed, onMounted } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth.ts';
 import { useProjectStore } from '@/stores/project.ts';
-import { useStoryStore } from '@/stores/story.ts';
 import ProjectList from '@/components/ProjectList.vue';
+import Toast from '@/components/Toast.vue';
 
 /**
  * The main component of the application.
@@ -29,7 +29,6 @@ const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const projectStore = useProjectStore();
-const storyStore = useStoryStore();
 
 const isAuthenticated = computed(() => authStore.isAuthenticated);
 
@@ -48,7 +47,6 @@ const logout = () => {
 onMounted(() => {
   // Initialize stores
   projectStore.fetchProjects();
-  storyStore.subscribeToChanges();
 });
 </script>
 
@@ -82,6 +80,7 @@ onMounted(() => {
         <RouterView />
       </main>
     </div>
+    <Toast />
   </div>
 </template>
 

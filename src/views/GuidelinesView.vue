@@ -33,6 +33,9 @@
       @save="saveGuidelines"
       @add-character="addCharacter"
       @edit-character="openEditModal"
+      @generate-character="generateCharacterImage"
+      @delete-character-image="deleteCharacterImage"
+      @upload-character-image="uploadCharacterImage"
     />
 
     <EditCharacterModal
@@ -40,6 +43,8 @@
       :character="editableCharacter!"
       @close="closeModal"
       @save="saveCharacter"
+      @generate="generateCharacterImage(editableCharacter!)"
+      @delete-image="deleteCharacterImage(editableCharacter!)"
     />
   </div>
 </template>
@@ -85,9 +90,11 @@ const addCharacter = () => {
   storyStore.addCharacter();
 };
 
-const openEditModal = (characterId: number) => {
+const openEditModal = (characterId: string) => {
   editableCharacter.value = {
-    ...storyStore.characters.find((c: Character) => c.id === characterId)!,
+    ...storyStore.characters.find(
+      (c: Character) => c.characterId === characterId
+    )!,
   };
   isModalOpen.value = true;
 };
@@ -95,6 +102,18 @@ const openEditModal = (characterId: number) => {
 const saveCharacter = (character: Character) => {
   storyStore.updateCharacter(character);
   closeModal();
+};
+
+const generateCharacterImage = (character: Character) => {
+  storyStore.generateCharacterImage(character);
+};
+
+const deleteCharacterImage = (character: Character) => {
+  storyStore.deleteCharacterImage(character);
+};
+
+const uploadCharacterImage = (character: Character) => {
+  storyStore.uploadCharacterImage(character);
 };
 
 const closeModal = () => {

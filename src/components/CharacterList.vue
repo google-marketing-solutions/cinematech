@@ -19,9 +19,12 @@
     <div class="characters-container">
       <CharacterCard
         v-for="character in characters"
-        :key="character.id"
+        :key="character.characterId"
         :character="character"
-        @edit="$emit('edit', character.id)"
+        @edit="$emit('edit', character.characterId)"
+        @generate="$emit('generate', character)"
+        @delete-image="$emit('delete-image', character)"
+        @upload="$emit('upload', character)"
       />
     </div>
     <button @click="$emit('add')" class="plus-button">+</button>
@@ -37,15 +40,18 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (e: 'edit', characterId: number): void;
+  (e: 'edit', characterId: string): void;
   (e: 'add'): void;
+  (e: 'generate', character: Character): void;
+  (e: 'delete-image', character: Character): void;
+  (e: 'upload', character: Character): void;
 }>();
 </script>
 
 <style scoped>
 .characters-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--spacing-md);
   margin-top: var(--spacing-sm);
 }

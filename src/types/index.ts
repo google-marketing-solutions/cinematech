@@ -14,10 +14,12 @@
  limitations under the License.
 */
 
+/**
+ * Represents a character in the story.
+ */
 export interface Character {
-  id: number;
   name: string;
-  characterId?: string;
+  characterId: string;
   age: string;
   gender: string;
   skin: string;
@@ -29,8 +31,14 @@ export interface Character {
   description: string;
   voice: string;
   image?: string;
+  isGeneratingImage?: boolean;
+  isUploadingImage?: boolean;
+  isDeletingImage?: boolean;
 }
 
+/**
+ * Directives for generating an image.
+ */
 export interface ImageDirectives {
   description: string;
   style: string;
@@ -40,6 +48,9 @@ export interface ImageDirectives {
   mood: string;
 }
 
+/**
+ * Directives for generating a video.
+ */
 export interface VideoDirectives {
   style: string;
   camera: string;
@@ -48,14 +59,17 @@ export interface VideoDirectives {
   transition: string;
 }
 
+/**
+ * Represents a single scene in the story.
+ */
 export interface Scene {
   id: number;
   title: string;
   description: string;
   background: string;
   script: string;
-  image: string | null;
-  video: string | null;
+  image?: string;
+  video?: string;
   imageDirectives: ImageDirectives;
   videoDirectives: VideoDirectives;
   characters: Character[];
@@ -68,6 +82,9 @@ export interface Scene {
   imageToVideo?: boolean;
 }
 
+/**
+ * Represents the overall state of the story generation.
+ */
 export interface StoryState {
   prompt: string;
   summary: string;
@@ -79,4 +96,28 @@ export interface StoryState {
   error: string | null;
   isEditModalVisible: boolean;
   currentScene: Scene | null;
+}
+
+/**
+ * Represents inlined data, typically for multimedia.
+ */
+export interface InlineData {
+  mimeType: string;
+  data: string;
+}
+
+/**
+ * Represents a part of a multi-part content, can be text or inline data.
+ */
+export interface Part {
+  inlineData?: InlineData;
+  text?: string;
+}
+
+/**
+ * Represents a piece of content in a conversation, with a role and parts.
+ */
+export interface Content {
+  role: 'user' | 'model';
+  parts: Part[];
 }

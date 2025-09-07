@@ -55,9 +55,12 @@
       ></textarea>
     </div>
     <CharacterList
-      :characters="characters || []"
-      @edit="$emit('edit-character', $event)"
+      :characters="characters"
       @add="$emit('add-character')"
+      @edit="$emit('edit-character', $event)"
+      @generate="$emit('generate-character', $event)"
+      @delete-image="$emit('delete-character-image', $event)"
+      @upload="$emit('upload-character-image', $event)"
     />
     <button @click="$emit('save')">Save Guidelines</button>
   </div>
@@ -66,20 +69,29 @@
 <script setup lang="ts">
 import CharacterList from './CharacterList.vue';
 import type { Character } from '@/types';
+import { withDefaults, defineProps, defineEmits } from 'vue';
 
-defineProps<{
-  summary?: string;
-  writingStyle?: string;
-  visualStyle?: string;
-  characters?: Character[];
-}>();
+withDefaults(
+  defineProps<{
+    summary?: string;
+    writingStyle?: string;
+    visualStyle?: string;
+    characters?: Character[];
+  }>(),
+  {
+    characters: () => [],
+  }
+);
 
 defineEmits<{
   (e: 'update:summary', value: string): void;
   (e: 'update:writingStyle', value: string): void;
   (e: 'update:visualStyle', value: string): void;
-  (e: 'edit-character', characterId: number): void;
+  (e: 'edit-character', characterId: string): void;
   (e: 'add-character'): void;
+  (e: 'generate-character', character: Character): void;
+  (e: 'delete-character-image', character: Character): void;
+  (e: 'upload-character-image', character: Character): void;
   (e: 'save'): void;
 }>();
 </script>

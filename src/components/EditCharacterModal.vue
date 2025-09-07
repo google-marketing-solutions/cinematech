@@ -17,6 +17,15 @@
   <div class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-content">
       <h2>Edit Character</h2>
+      <div class="character-image-container">
+        <MediaSlot
+          :media-type="'image'"
+          :data-url="mediaDataUrl"
+          :scene-id="character.characterId || character.name"
+          @generate="$emit('generate')"
+          @delete="$emit('delete-image')"
+        />
+      </div>
       <div class="form-group">
         <label for="edit-name">Name</label>
         <input type="text" id="edit-name" v-model="editableCharacter.name" />
@@ -96,24 +105,30 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { Character } from '@/types';
+import { useMedia } from '@/composables/useMedia';
+import MediaSlot from './MediaSlot.vue';
 
-const props = defineProps<{
-  character: Character;
-}>();
+const props = defineProps({
+  character: {
+    type: Object as () => Character,
+    required: true,
+  },
+});
 
-const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'save', character: Character): void;
-}>();
-
-const editableCharacter = ref<Character>({ ...props.character });
+const editableCharacter = ref({ ...props.character });
+const { mediaDataUrl, loadMedia } = useMedia();
 
 watch(
-  () => props.character,
-  (newVal) => {
-    editableCharacter.value = { ...newVal };
-  }
+  () => props.character.image,
+  (newImage) => {
+    if (newImage) {
+      loadMedia(newImage);
+    }
+  },
+  { immediate: true }
 );
+
+const emit = defineEmits(['close', 'save', 'generate', 'delete-image']);
 
 const save = () => {
   emit('save', editableCharacter.value);
@@ -156,6 +171,68 @@ const save = () => {
   font-weight: 600;
   color: var(--color-text-primary);
   text-align: center;
+}
+
+.character-image-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-lg);
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16/9;
+  margin: 0 auto var(--spacing-lg);
+}
+
+.character-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--border-radius-md);
+  border: 3px solid var(--color-border);
+}
+
+.character-image-placeholder {
+  width: 100%;
+  height: 100%;
+  background-color: #ccc;
+  border-radius: var(--border-radius-md);
+  border: 3px solid var(--color-border);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.generate-button {
+  background-color: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.delete-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.character-image-container:hover .delete-button {
+  opacity: 1;
 }
 
 .form-group {

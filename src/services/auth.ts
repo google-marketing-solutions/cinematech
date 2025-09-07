@@ -41,8 +41,7 @@ export function initializeGoogleSignIn(
 
   const tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: finalClientId,
-    scope:
-      'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/devstorage.read_write https://www.googleapis.com/auth/cloud-platform',
+    scope: 'https://www.googleapis.com/auth/cloud-platform',
     callback: (tokenResponse) => {
       if (tokenResponse && tokenResponse.access_token) {
         const authStore = useAuthStore();

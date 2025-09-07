@@ -15,7 +15,10 @@
 -->
 <template>
   <div class="media-slot">
-    <div v-if="isGenerating || isUploading" class="loading-container">
+    <div
+      v-if="isGenerating || isUploading || isDeleting"
+      class="loading-container"
+    >
       <div class="loading-spinner"></div>
       <p v-if="generationStatus" class="status-text">{{ generationStatus }}</p>
       <button v-if="isGenerating" @click="cancel" class="cancel-btn">
@@ -49,7 +52,7 @@
         Generate {{ mediaType }}
       </button>
       <button
-        v-if="mediaType === 'image'"
+        v-if="mediaType === 'image' && !hideLastFrame"
         @click="useLastFrame"
         class="generate-btn"
         :disabled="index === 0"
@@ -90,10 +93,12 @@ defineProps<{
   dataUrl?: string | null;
   isGenerating?: boolean;
   isUploading?: boolean;
+  isDeleting?: boolean;
   generationStatus?: string | null;
   sceneId: string | number;
   index?: number;
   displayOnly?: boolean;
+  hideLastFrame?: boolean;
 }>();
 
 const emit = defineEmits<{

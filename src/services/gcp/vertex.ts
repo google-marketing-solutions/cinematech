@@ -17,7 +17,42 @@
 import { getAccessToken } from '../auth.ts';
 import { downloadFileAsBase64 } from './gcs.ts';
 import { useConfigStore } from '@/stores/config.ts';
-import type { Scene } from '@/types';
+import type { Scene, Content } from '@/types';
+
+const DefaultSecuritySettings = [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'OFF',
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'OFF',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'OFF',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'OFF',
+      },
+      {
+        category: 'HARM_CATEGORY_IMAGE_HATE',
+        threshold: 'OFF',
+      },
+      {
+        category: 'HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT',
+        threshold: 'OFF',
+      },
+      {
+        category: 'HARM_CATEGORY_IMAGE_HARASSMENT',
+        threshold: 'OFF',
+      },
+      {
+        category: 'HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT',
+        threshold: 'OFF',
+      },
+    ]
 
 /**
  * Calls a Vertex AI API endpoint.
@@ -30,12 +65,13 @@ import type { Scene } from '@/types';
 async function callVertexApi(
   endpoint: string,
   body: any,
+  locationId = '',
   method: 'POST' | 'GET' = 'POST'
 ): Promise<any> {
   const configStore = useConfigStore();
   const accessToken = await getAccessToken();
   const projectId = configStore.googleCloudProjectId;
-  const locationId = configStore.gcpLocationId;
+  locationId = locationId || configStore.gcpLocationId;
   const baseUrl = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${locationId}/publishers/google/models`;
   try {
     const response = await fetch(`${baseUrl}/${endpoint}`, {
@@ -259,6 +295,47 @@ export async function generateImage(
   };
 
   return await callVertexApi(apiUrl, requestBody);
+}
+
+/**
+ * Generates images and text based on a series of content parts using a Gemini model.
+ * This function is useful for multi-modal generation where the input can include both text and images,
+ * and the output can also contain generated images alongside text.
+ * @param {Content[]} contents - An array of content parts, each with a role ('user') and parts containing text or inlineData.
+ * @return {Promise<any>} A promise that resolves with the generated content, potentially including images.
+ * @throws {Error} If the provided contents are invalid.
+ */
+export async function generateImageFromContent(
+  contents: Content[]
+): Promise<any> {
+  const modelId = 'gemini-2.5-flash-image-preview';
+  const generateContentApi = 'streamGenerateContent';
+  const endpoint = `${modelId}:${generateContentApi}`;
+  console.log('contents', contents);
+  if (
+    !contents.every(
+      (content) =>
+        content.role === 'user' &&
+        content.parts.every((part) => part.text || part.inlineData)
+    )
+  ) {
+    throw new Error(
+      'Invalid contents: all parts must be from the user and contain either text or inlineData'
+    );
+  }
+
+  const payload = {
+    contents,
+    generationConfig: {
+      temperature: 1,
+      maxOutputTokens: 32768,
+      responseModalities: ['TEXT', 'IMAGE'],
+      topP: 0.95,
+    },
+    safetySettings: DefaultSecuritySettings,
+  };
+
+  return await callVertexApi(endpoint, payload, 'global');
 }
 
 /**

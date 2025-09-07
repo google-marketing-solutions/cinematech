@@ -14,13 +14,15 @@
  limitations under the License.
 */
 import { defineStore } from 'pinia';
+import { useToast } from '@/composables/useToast';
 import { formatGuidelines } from '../services/prompts/guidelines.ts';
 import { formatScenes } from '../services/prompts/scenes.ts';
 import {
-  generateImage,
   createVideo,
   generateContent,
   upscaleImage,
+  generateImageFromContent,
+  generateImage,
 } from '../services/gcp/vertex.ts';
 import {
   saveBase64ToGCS,
@@ -39,8 +41,61 @@ import { createFinalVideo } from '../services/ffmpeg.ts';
 import { useVideoStore } from './video.ts';
 import { useProjectStore } from './project.ts';
 import { useConfigStore } from './config.ts';
-import _ from 'lodash';
-import type { StoryState, Scene, Character } from '@/types';
+import type { StoryState, Scene, Character, Content } from '@/types';
+
+const generateImageScenePrompt = `
+You will be provided with two inputs:
+1.  A JSON object detailing the 'scene_description' (setting, action, mood, composition).
+2.  An optional list of 'character_references' (images) and their corresponding 'descriptions' within the JSON.
+
+Your task is to generate a high-fidelity image matching the 'scene_description'.
+
+**Critical Instruction: Character Consistency**
+
+If 'character_references' are provided, your **highest priority** is to preserve the identity and likeness of those characters.
+* **Identity (Must Match Reference):** Facial features, facial structure, skin tone, eye color, hairstyle, and permanent features (e.g., scars, tattoos).
+* **Scene-Specifics (From JSON):** The characters' actions, expressions, and clothing should be dictated by the 'scene_description' and their specific 'description' in the JSON.
+
+**Conflict Resolution:**
+* **DO:** Apply the JSON's described clothing, expression, and action *to* the character from the reference image.
+* **DO NOT:** Change the character's core identity (face, hair, body type) to match the JSON if it conflicts with the reference image. The reference image *always* wins for identity.
+2. Advanced Prompt (Structured for Robustness)
+This version uses a more formal structure, which many models follow more reliably, especially for complex, multi-part instructions.
+
+[System Prompt]
+
+### ROLE
+You are an expert image generation engine specializing in high-fidelity scene rendering with perfect character consistency.
+
+### INPUTS
+1.  'scene_request' (JSON): A JSON object containing:
+    * 'scene_description' (string): A detailed description of the overall image, including setting, action, lighting, mood, and composition.
+    * 'characters' (array, optional): A list of character objects, each with:
+        * 'id' (string): A unique identifier for the character.
+        * 'description' (string): A description of this character's specific action, expression, and clothing *for this scene*.
+2.  'character_references' (Dictionary/Map, optional): A key-value map where each key is a 'id' from the 'characters' array and the value is the URL or data of a high-resolution reference image for that character.
+
+### TASK
+Generate a single, photorealistic (or specified style) image that synthesizes the 'scene_request' (JSON) and the 'character_references'.
+
+### HIERARCHY OF IMPORTANCE
+Your processing must follow this strict order of priority:
+
+1.  **Level 1 (Highest Priority): Character Identity**
+    * The face, hairstyle, skin tone, body type, and all identifying features of any character in the 'characters' array **MUST** be an exact match to their corresponding 'character_references' image.
+    * This is non-negotiable. Likeness is the most critical goal.
+
+2.  **Level 2: Character Context (from JSON)**
+    * The 'description' field for each character in the JSON dictates their *in-scene* appearance and behavior.
+    * You MUST apply the specified **clothing**, **expression**, and **action** from this JSON description *to the reference character's body*.
+
+3.  **Level 3: Scene Composition (from JSON)**
+    * The overall 'scene_description' (setting, lighting, camera angle, mood) from the JSON dictates the final composition.
+    * You must place the fully-realized, consistent characters (from Level 1 + Level 2) into this environment.
+
+### SUMMARY
+Create the scene from the JSON, but populate it with characters who look *exactly* like the reference images, while wearing the clothes and performing the actions described in the JSON.
+`
 
 /**
  * Returns the initial state for the story store.
@@ -110,9 +165,10 @@ export const useStoryStore = defineStore('story', {
     /**
      * Saves the current project to GCS.
      */
-    async saveProject() {
+    async saveProject(projectId?: string) {
       const projectStore = useProjectStore();
-      if (!projectStore.currentProjectId) return;
+      const targetProjectId = projectId || projectStore.currentProjectId;
+      if (!targetProjectId) return;
 
       try {
         const configStore = useConfigStore();
@@ -135,7 +191,7 @@ export const useStoryStore = defineStore('story', {
           file,
           'project.json',
           configStore.gcsBucketName,
-          projectStore.currentProjectId
+          targetProjectId
         );
       } catch (error: any) {
         this.error = `Failed to save project: ${error.message}`;
@@ -143,25 +199,10 @@ export const useStoryStore = defineStore('story', {
       }
     },
     /**
-     * A debounced version of the saveProject action.
-     */
-    _saveProjectDebounced: _.debounce(function (this: any) {
-      this.saveProject();
-    }, 2000),
-    /**
-     * Subscribes to changes in the store and automatically saves the project.
-     */
-    subscribeToChanges() {
-      this.$subscribe(() => {
-        this._saveProjectDebounced();
-      });
-    },
-    /**
      * Adds a new character to the story.
      */
     addCharacter() {
       this.characters.push({
-        id: Date.now(),
         name: 'New Character',
         characterId: `char-${Date.now()}`,
         age: '',
@@ -183,11 +224,26 @@ export const useStoryStore = defineStore('story', {
      */
     updateCharacter(updatedCharacter: Character) {
       const index = this.characters.findIndex(
-        (c) => c.id === updatedCharacter.id
+        (c) => c.characterId === updatedCharacter.characterId
       );
       if (index !== -1) {
         this.characters[index] = updatedCharacter;
       }
+
+      // Update the character in all scenes
+      this.scenes.forEach((scene) => {
+        const characterInScene = scene.characters.find(
+          (c) => c.characterId === updatedCharacter.characterId
+        );
+        if (characterInScene) {
+          const updatedCharacters = scene.characters.map((c) =>
+            c.characterId === updatedCharacter.characterId
+              ? updatedCharacter
+              : c
+          );
+          this.updateScene({ ...scene, characters: updatedCharacters });
+        }
+      });
     },
     /**
      * Sets the prompt for the story.
@@ -222,7 +278,10 @@ export const useStoryStore = defineStore('story', {
         this.writingStyle = writingStyle;
         this.visualStyle = visualStyle || '';
         this.characters.push(
-          ...characters.map((c: any) => ({ ...c, id: Date.now() }))
+          ...characters.map((c: any, index: number) => ({
+            ...c,
+            characterId: c.characterId || `char-${Date.now() + index}`,
+          }))
         );
       } catch (error: any) {
         this.error = error;
@@ -241,8 +300,8 @@ export const useStoryStore = defineStore('story', {
         description: 'New Description',
         background: '',
         script: '',
-        image: 'https://via.placeholder.com/300x200',
-        video: null,
+        image: undefined,
+        video: undefined,
         imageDirectives: {
           description: '',
           style: '',
@@ -327,7 +386,7 @@ export const useStoryStore = defineStore('story', {
       if (mediaUri) {
         try {
           await deleteFileFromGCS(mediaUri);
-          const updatedScene = { ...scene, [mediaType]: null };
+          const updatedScene = { ...scene, [mediaType]: undefined };
           this.updateScene(updatedScene);
         } catch (error: any) {
           console.error(`Failed to delete ${mediaType} from GCS:`, error);
@@ -400,25 +459,59 @@ export const useStoryStore = defineStore('story', {
      */
     async generateImageForScene(scene: Scene) {
       const projectStore = useProjectStore();
-      if (!projectStore.currentProjectId) return;
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
       this.updateScene({ ...scene, isGeneratingImage: true });
       try {
-        const image = await generateImage(
-          JSON.stringify(scene.imageDirectives)
-        );
+        const contents: Content[] = [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: generateImageScenePrompt,
+              },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [{ text: JSON.stringify(scene.imageDirectives) }],
+          },
+        ];
+
+        console.log('scene.characters', scene.characters);
+        for (const character of scene.characters) {
+          if (character.image) {
+            const imageBase64 = await downloadFileAsBase64(character.image);
+            contents[0].parts.push({
+              text: JSON.stringify(character),
+            });
+            contents[0].parts.push({
+              inlineData: {
+                mimeType: 'image/png',
+                data: imageBase64,
+              },
+            });
+          }
+        }
+
+        const response = await generateImageFromContent(contents);
+
         const updatedScene = {
           ...scene,
           image: await saveBase64ToGCS(
-            image.predictions[0].bytesBase64Encoded,
+            response[0].candidates[0].content.parts[0].inlineData.data,
             'image',
             'image/png',
             undefined,
-            projectStore.currentProjectId
+            projectId
           ),
           isGeneratingImage: false,
         };
         this.updateScene(updatedScene);
+        this.saveProject(projectId);
       } catch (error: any) {
+        const { showToast } = useToast();
+        showToast(`Failed to generate image: ${error.message}`, 'error');
         console.error('Failed to generate image:', error);
         this.updateScene({ ...scene, isGeneratingImage: false });
       }
@@ -429,7 +522,8 @@ export const useStoryStore = defineStore('story', {
      */
     async generateVideoForScene(scene: Scene) {
       const projectStore = useProjectStore();
-      if (!projectStore.currentProjectId) return;
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
       this.updateScene({
         ...scene,
         isGeneratingVideo: true,
@@ -448,7 +542,7 @@ export const useStoryStore = defineStore('story', {
           'video',
           'video/mp4',
           undefined,
-          projectStore.currentProjectId
+          projectId
         );
         const updatedScene = {
           ...scene,
@@ -457,7 +551,10 @@ export const useStoryStore = defineStore('story', {
           generationStatus: 'Completed',
         };
         this.updateScene(updatedScene);
+        this.saveProject(projectId);
       } catch (error: any) {
+        const { showToast } = useToast();
+        showToast(`Failed to generate video: ${error.message}`, 'error');
         console.error('Failed to generate video:', error);
         this.updateScene({
           ...scene,
@@ -482,7 +579,8 @@ export const useStoryStore = defineStore('story', {
      */
     async useLastFrameAsImage(sceneIndex: number) {
       const projectStore = useProjectStore();
-      if (!projectStore.currentProjectId) return;
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
       if (sceneIndex > 0) {
         const currentScene = this.scenes[sceneIndex];
         const previousScene = this.scenes[sceneIndex - 1];
@@ -500,13 +598,14 @@ export const useStoryStore = defineStore('story', {
               file,
               'image',
               undefined,
-              projectStore.currentProjectId
+              projectId
             );
             this.updateScene({
               ...currentScene,
               image: imageUrl,
               isGeneratingImage: false,
             });
+            this.saveProject(projectId);
           } catch (error: any) {
             console.error('Failed to use last frame as image:', error);
             this.updateScene({ ...currentScene, isGeneratingImage: false });
@@ -520,7 +619,8 @@ export const useStoryStore = defineStore('story', {
      */
     async upscaleImageForScene(scene: Scene) {
       const projectStore = useProjectStore();
-      if (!projectStore.currentProjectId) return;
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
       if (!scene.image) return;
       this.updateScene({ ...scene, isUpscaling: true });
       try {
@@ -530,10 +630,11 @@ export const useStoryStore = defineStore('story', {
           'image',
           'image/png',
           undefined,
-          projectStore.currentProjectId
+          projectId
         );
         const updatedScene = { ...scene, image: imageUrl, isUpscaling: false };
         this.updateScene(updatedScene);
+        this.saveProject(projectId);
       } catch (error: any) {
         console.error('Failed to upscale image:', error);
         this.updateScene({ ...scene, isUpscaling: false });
@@ -578,13 +679,113 @@ export const useStoryStore = defineStore('story', {
           await ScriptJsonSchema
         );
         const { scenes } = JSON.parse(res.candidates[0].content.parts[0].text);
-        this.scenes = scenes;
+
+        // Map character images to the scenes
+        this.scenes = scenes.map((scene: Scene) => ({
+          ...scene,
+          characters: scene.characters.map((character: Character) => {
+            const fullCharacter = this.characters.find(
+              (c) => c.characterId === character.characterId
+            );
+            return {
+              ...character,
+              image: fullCharacter?.image || character.image,
+            };
+          }),
+        }));
       } catch (error: any) {
         this.error = error;
         console.error('Error creating scenes:', error);
       } finally {
         this.loading = false;
       }
+    },
+
+    async generateCharacterImage(character: Character) {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
+
+      this.updateCharacter({ ...character, isGeneratingImage: true });
+      try {
+        const prompt = `a portrait of:\n ${JSON.stringify(character)}. \nthe character should look directly into the camera and have a white backround. like in a proffesional headshot for actors`;
+        const image = await generateImage(prompt);
+        const imageUrl = await saveBase64ToGCS(
+          image.predictions[0].bytesBase64Encoded,
+          'image',
+          'image/png',
+          undefined,
+          projectId
+        );
+        const updatedCharacter = {
+          ...character,
+          image: imageUrl,
+          isGeneratingImage: false,
+        };
+        this.updateCharacter(updatedCharacter);
+        this.saveProject(projectId);
+      } catch (error: any) {
+        const { showToast } = useToast();
+        showToast(
+          `Failed to generate character image: ${error.message}`,
+          'error'
+        );
+        console.error('Failed to generate character image:', error);
+        this.updateCharacter({ ...character, isGeneratingImage: false });
+      }
+    },
+
+    async deleteCharacterImage(character: Character) {
+      if (!character.image) return;
+      this.updateCharacter({ ...character, isDeletingImage: true });
+      try {
+        await deleteFileFromGCS(character.image);
+        this.updateCharacter({
+          ...character,
+          image: undefined,
+          isDeletingImage: false,
+        });
+      } catch (error: any) {
+        console.error('Failed to delete character image:', error);
+        this.updateCharacter({ ...character, isDeletingImage: false });
+      }
+    },
+
+    uploadCharacterImage(character: Character) {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        if (target.files) {
+          const file = target.files[0];
+          if (file) {
+            this.updateCharacter({ ...character, isUploadingImage: true });
+            try {
+              const imageUrl = await uploadTypedFileToGCS(
+                file,
+                'image',
+                undefined,
+                projectId
+              );
+              this.updateCharacter({
+                ...character,
+                image: imageUrl || undefined,
+                isUploadingImage: false,
+              });
+              this.saveProject(projectId);
+            } catch (error) {
+              console.error('Failed to upload character image:', error);
+              this.updateCharacter({ ...character, isUploadingImage: false });
+            }
+          }
+        }
+      };
+      input.click();
     },
   },
 });

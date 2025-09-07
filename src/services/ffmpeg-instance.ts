@@ -31,9 +31,9 @@ let ffmpegLoadingPromise: Promise<FFmpeg> | null = null;
  * @return {Promise<FFmpeg>} A promise that resolves with the loaded FFmpeg instance.
  * @throws {Error} If FFmpeg fails to load, the promise will be rejected with the corresponding error.
  */
-export async function getFFmpeg(): Promise<FFmpeg> {
+export function getFFmpeg(): Promise<FFmpeg> {
   if (ffmpegInstance) {
-    return ffmpegInstance;
+    return Promise.resolve(ffmpegInstance);
   }
 
   if (ffmpegLoadingPromise) {
@@ -41,28 +41,29 @@ export async function getFFmpeg(): Promise<FFmpeg> {
   }
 
   ffmpegLoadingPromise = new Promise((resolve, reject) => {
-    const ffmpeg = new FFmpeg();
-    Promise.all([
-      toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    ])
-      .then(([coreURL, wasmURL]) => {
-        return ffmpeg.load({
-          coreURL,
-          wasmURL,
+    const loadFFmpeg = async () => {
+      try {
+        const ffmpeg = new FFmpeg();
+        await ffmpeg.load({
+          coreURL: await toBlobURL(
+            `${baseURL}/ffmpeg-core.js`,
+            'text/javascript'
+          ),
+          wasmURL: await toBlobURL(
+            `${baseURL}/ffmpeg-core.wasm`,
+            'application/wasm'
+          ),
         });
-      })
-      .then(() => {
         ffmpegInstance = ffmpeg;
         resolve(ffmpegInstance);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Failed to load FFmpeg', error);
         reject(error);
-      })
-      .finally(() => {
+      } finally {
         ffmpegLoadingPromise = null;
-      });
+      }
+    };
+    loadFFmpeg();
   });
 
   return ffmpegLoadingPromise;

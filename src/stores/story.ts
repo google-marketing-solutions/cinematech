@@ -111,6 +111,7 @@ const getInitialState = (): Omit<
   visualStyle: '',
   characters: [],
   scenes: [],
+  finalVideo: undefined,
 });
 
 /**
@@ -150,6 +151,7 @@ export const useStoryStore = defineStore('story', {
           this.visualStyle = projectData.visualStyle || '';
           this.characters = projectData.characters || [];
           this.scenes = projectData.scenes || [];
+          this.finalVideo = projectData.finalVideo || undefined;
         }
       } catch (error: any) {
         if (error.message.includes('404')) {
@@ -179,6 +181,7 @@ export const useStoryStore = defineStore('story', {
           visualStyle: this.visualStyle,
           characters: this.characters,
           scenes: this.scenes,
+          finalVideo: this.finalVideo,
         };
         const blob = new Blob([JSON.stringify(projectData, null, 2)], {
           type: 'application/json',
@@ -432,16 +435,27 @@ export const useStoryStore = defineStore('story', {
      * @return {Promise<string | undefined>} A promise that resolves with the GCS URI of the final video, or undefined if the creation fails.
      */
     async createFinalVideo() {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) {
+        return;
+      }
       this.loading = true;
       try {
         const finalVideoData = await createFinalVideo(this.scenes);
         const blob = new Blob([finalVideoData.slice()], { type: 'video/mp4' });
-        const file = new File([blob], `final-video-${Date.now()}.mp4`, {
+        const file = new File([blob], `merged.mp4`, {
           type: 'video/mp4',
         });
 
-        const gcsUri = await uploadTypedFileToGCS(file, 'video');
-        localStorage.setItem('finalVideoGcsUri', gcsUri);
+        const gcsUri = await uploadTypedFileToGCS(
+          file,
+          'video',
+          undefined,
+          projectId
+        );
+        this.finalVideo = gcsUri;
+        await this.saveProject(projectId);
 
         const videoStore = useVideoStore();
         videoStore.setVideoUrl(gcsUri);

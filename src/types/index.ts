@@ -96,6 +96,7 @@ export interface StoryState {
   error: string | null;
   isEditModalVisible: boolean;
   currentScene: Scene | null;
+  finalVideo?: string;
 }
 
 /**

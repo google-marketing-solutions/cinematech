@@ -18,7 +18,9 @@
   <div class="video-view">
     <PageTitle title="Final Video" />
     <div class="video-container">
-      <video :src="videoUrl ?? undefined" controls />
+      <div v-if="isLoading" class="loading-message">Loading video...</div>
+      <video v-else-if="videoUrl" :src="videoUrl" controls />
+      <div v-else class="no-video-message">Video is missing</div>
     </div>
     <div class="actions">
       <button @click="downloadVideo" :disabled="!videoUrl">
@@ -30,25 +32,35 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
-import { useVideoStore } from '@/stores/video.ts';
+import { onMounted, ref, watch } from 'vue';
+import { useStoryStore } from '@/stores/story.ts';
 import PageTitle from '@/components/PageTitle.vue';
 import { useMedia } from '@/composables/useMedia.ts';
 import { downloadFileFromGCS } from '@/services/gcp/gcs.ts';
 
-const videoStore = useVideoStore();
-const videoUrl = computed(() => videoStore.videoUrl);
+const storyStore = useStoryStore();
+const videoUrl = ref<string | null>(null);
+const isLoading = ref(false);
 const { downloadMedia } = useMedia();
 
-onMounted(() => {
-  const savedVideoGcsUri = localStorage.getItem('finalVideoGcsUri');
-  if (savedVideoGcsUri && !videoUrl.value) {
-    downloadFileFromGCS(savedVideoGcsUri, 'blob').then((blob: Blob) => {
-      const url = URL.createObjectURL(blob);
-      videoStore.setVideoUrl(url);
-    });
+const loadVideo = async () => {
+  videoUrl.value = null;
+  if (storyStore.finalVideo) {
+    isLoading.value = true;
+    try {
+      const blob = await downloadFileFromGCS(storyStore.finalVideo, 'blob');
+      videoUrl.value = URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Failed to load video:', error);
+    } finally {
+      isLoading.value = false;
+    }
   }
-});
+};
+
+watch(() => storyStore.finalVideo, loadVideo);
+
+onMounted(loadVideo);
 
 const downloadVideo = () => {
   if (videoUrl.value) {
@@ -118,5 +130,17 @@ video {
   background-color: var(--color-border);
   color: var(--color-text-secondary);
   cursor: not-allowed;
+}
+
+.loading-message,
+.no-video-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  min-height: 480px;
+  font-size: 1.2rem;
+  color: var(--color-text-secondary);
 }
 </style>

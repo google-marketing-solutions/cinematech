@@ -16,7 +16,7 @@
 
 <template>
   <div class="prompt-container">
-    <PageTitle title="Tarantino AI" subtitle="Unleash Your Inner Storyteller" />
+    <PageTitle title="CinemaTech" subtitle="Unleash Your Inner Storyteller" />
     <PromptForm v-model="prompt" @create="createStory" :loading="loading" />
   </div>
 </template>

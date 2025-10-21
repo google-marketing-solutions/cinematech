@@ -59,7 +59,7 @@ onMounted(() => {
       <div class="logo">
         <!-- You can place your logo here -->
         <img src="@/assets/logo.png" alt="Logo" class="logo-image" />
-        <RouterLink to="/">Tarantino AI</RouterLink>
+        <RouterLink to="/">CinemaTech</RouterLink>
       </div>
       <nav class="app-nav">
         <RouterLink to="/config">Config</RouterLink>

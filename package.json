@@ -1,5 +1,5 @@
 {
-  "name": "tarantino",
+  "name": "cinematech",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
     "type-check": "vue-tsc --build --force",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .eslintignore",
     "format": "prettier --write src/",
-    "deploy:dev": "ENV_NAME=dev && npm run build && firebase use taratino-ai-dev && firebase deploy --only hosting:taratino-ai-dev && ENV_NAME=dev npm run tag-and-push",
-    "deploy:prod": "VITE_GOOGLE_CLIENT_ID='' ENV_NAME=prod && npm run build && firebase use taratino-ai-dev && firebase deploy --only hosting:tarantino-ai && ENV_NAME=prod npm run tag-and-push",
+    "deploy:dev": "source .env && npm run build && firebase use $FIREBASE_ALIAS && firebase deploy --only hosting:$DEV_SITE_NAME",
+    "deploy:prod": "source .env && npm run build && firebase use $FIREBASE_ALIAS && firebase deploy --only hosting:$PROD_SITE_NAME && ENV_NAME=prod npm run tag-and-push",
     "tag-and-push": "git tag deploy-$(date +'%Y-%m-%d-%H-%M-%S')-$ENV_NAME && git push --tags"
   },
   "dependencies": {

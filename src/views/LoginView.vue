@@ -18,7 +18,7 @@
   <div class="login-container">
     <div class="login-card">
       <img src="@/assets/logo.png" alt="Logo" class="logo" />
-      <h1>Tarantino AI</h1>
+      <h1>CinemaTech</h1>
       <p class="subtitle">Your Creative Partner in Filmmaking</p>
 
       <div v-if="!isClientIdAvailable" class="input-group">

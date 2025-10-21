@@ -1,4 +1,4 @@
-# 🎬 Tarantino AI Video Generator
+# 🎬 CinemaTech Video Generator
 
 This is a web-based visual storytelling platform to enable advertisers create text to proffesional video ads at scale
 
@@ -14,11 +14,11 @@ You need to have [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/
 
 1.  Clone the repository to your local machine:
     ```bash
-    git clone https://github.com/your-username/tarantino-ui.git
+    git clone https://github.com/your-username/cinematech.git
     ```
 2.  Navigate to the project directory:
     ```bash
-    cd tarantino-ui
+    cd cinematech
     ```
 3.  Install the required dependencies:
     ```bash
@@ -59,9 +59,9 @@ To use the AI-powered features of this application, you will need to configure i
 
 | Setting | Description |
 | :--- | :--- |
-| **Gemini Text Model** | The name of the Gemini model to use for text generation (e.g., `gemini-1.5-flash-001`). |
-| **Vertex Video Model** | The name of the Vertex AI model for video generation (e.g., `image-to-video-generation-001`). |
-| **Vertex Image Model** | The name of the Vertex AI model for image generation (e.g., `imagegeneration@006`). |
+| **Gemini Text Model** | The name of the Gemini model to use for text generation (e.g., `gemini-2.5-flash-001`). |
+| **Vertex Video Model** | The name of the Vertex AI model for video generation (e.g., `veo-3.0-generate-001`). |
+| **Vertex Image Model** | The name of the Vertex AI model for image generation (e.g., `imagen-4.0-ultra-generate`). |
 | **Google Cloud Project ID** | Your GCP project ID. |
 | **GCS Bucket Name** | The name of the Google Cloud Storage bucket where your media files will be stored. |
 | **GCP Location ID** | The GCP location where your resources are hosted (e.g., `us-central1`). |

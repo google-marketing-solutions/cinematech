@@ -30,6 +30,7 @@
         @use-last-frame="useLastFrame"
         @download="downloadMedia('image')"
         @upscale="upscaleImage"
+        @update:imageUrl="handleImageUpdate"
       />
       <MediaSlot
         media-type="video"
@@ -76,7 +77,14 @@ const emit = defineEmits([
   'delete-media',
   'cancel-video-generation',
   'upscale-image',
+  'update-scene-image',
 ]);
+
+const handleImageUpdate = (imageUrl: string | null) => {
+  if (imageUrl) {
+    emit('update-scene-image', { scene: props.scene, imageUrl });
+  }
+};
 
 const {
   mediaDataUrl: imageDataUrl,

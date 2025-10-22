@@ -60,6 +60,7 @@
           "
           @cancel-video-generation="storyStore.cancelVideoGeneration"
           @upscale-image="storyStore.upscaleImageForScene"
+          @update-scene-image="handleUpdateSceneImage"
         />
         <button @click="storyStore.addScene" class="add-scene-btn">+</button>
       </div>
@@ -86,6 +87,10 @@ const router = useRouter();
 const handleSaveScene = (updatedScene: Scene) => {
   storyStore.updateScene(updatedScene);
   storyStore.hideEditModal();
+};
+
+const handleUpdateSceneImage = ({ scene, imageUrl }: { scene: Scene; imageUrl: string }) => {
+  storyStore.updateSceneImage(scene, imageUrl);
 };
 
 const handleCreateVideo = async () => {

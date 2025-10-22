@@ -476,6 +476,28 @@ export const useStoryStore = defineStore('story', {
         this.loading = false;
       }
     },
+    async updateSceneImage(scene: Scene, imageUrl: string) {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
+
+      this.updateScene({ ...scene, isUploadingImage: true });
+      try {
+        const newImageUrl = await saveBase64ToGCS(
+          imageUrl.split(',')[1],
+          'image',
+          'image/png',
+          undefined,
+          projectId
+        );
+        const updatedScene = { ...scene, image: newImageUrl, isUploadingImage: false };
+        this.updateScene(updatedScene);
+        this.saveProject(projectId);
+      } catch (error: any) {
+        console.error('Failed to update scene image:', error);
+        this.updateScene({ ...scene, isUploadingImage: false });
+      }
+    },
     /**
      * Generates an image for a scene.
      * @param {Scene} scene - The scene to generate an image for.
@@ -689,9 +711,9 @@ export const useStoryStore = defineStore('story', {
       this.visualStyle = visualStyle;
     },
       /**
-     * Sets the resolution for the story.
-     * @param {string} resolution - The resolution.
-     */
+       * Sets the resolution for the story.
+       * @param {string} resolution - The resolution.
+       */
     setResolution(resolution: '720p' | '1080p') {
       this.resolution = resolution;
     },

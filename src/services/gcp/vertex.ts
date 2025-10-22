@@ -128,14 +128,14 @@ export async function createVideo(
   const body = {
     instances: instances,
     parameters: {
-      aspectRatio: aspectRatio,
+      aspectRatio,
       sampleCount: 1,
       durationSeconds: '8',
       personGeneration: 'allow_all',
       addWatermark: true,
       includeRaiReason: true,
       generateAudio: true,
-      resolution: resolution,
+      resolution,
     },
   };
 
@@ -282,7 +282,7 @@ export async function generateImage(
   const apiUrl = `${modelId}:predict`;
 
   const defaultParameters = {
-    aspectRatio: aspectRatio,
+    aspectRatio,
     sampleCount: 1,
     negativePrompt: '',
     enhancePrompt: false,

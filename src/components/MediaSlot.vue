@@ -77,16 +77,25 @@
         class="icon mdi mdi-arrow-up-circle-outline"
       ></span>
       <span
+        v-if="mediaType === 'image' && dataUrl && !displayOnly"
+        @click="openEditModal"
+        class="icon mdi mdi-pencil"
+      ></span>
+      <span
         v-if="dataUrl && !displayOnly"
         @click="deleteMedia"
         class="icon mdi mdi-delete"
       ></span>
     </div>
   </div>
+  <Teleport to="body">
+    <ImageEditModal :show="showEditModal" :image-url="dataUrl" @close="closeEditModal" @save="handleImageUpdate" />
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import ImageEditModal from './ImageEditModal.vue';
 
 defineProps<{
   mediaType: 'image' | 'video';
@@ -110,9 +119,19 @@ const emit = defineEmits<{
   (e: 'use-last-frame'): void;
   (e: 'image-to-video-change', value: boolean): void;
   (e: 'cancel'): void;
+  (e: 'update:imageUrl', imageUrl: string | null): void;
+
 }>();
 
 const imageToVideo = ref(false);
+
+const showEditModal = ref(false);
+const openEditModal = () => (showEditModal.value = true);
+const closeEditModal = () => (showEditModal.value = false);
+
+const handleImageUpdate = (imageUrl: string | null) => {
+  emit('update:imageUrl', imageUrl);
+};
 
 const generate = () => emit('generate');
 const upload = () => emit('upload');

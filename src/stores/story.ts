@@ -43,6 +43,14 @@ import { useProjectStore } from './project.ts';
 import { useConfigStore } from './config.ts';
 import type { StoryState, Scene, Character, Content } from '@/types';
 
+// Add resolution and aspectRatio to the StoryState interface
+declare module '@/types' {
+  interface StoryState {
+    resolution: '720p' | '1080p';
+    aspectRatio: '16:9' | '9:16';
+  }
+}
+
 const generateImageScenePrompt = `
 You will be provided with two inputs:
 1.  A JSON object detailing the 'scene_description' (setting, action, mood, composition).
@@ -111,7 +119,8 @@ const getInitialState = (): Omit<
   visualStyle: '',
   characters: [],
   scenes: [],
-  finalVideo: undefined,
+  resolution: '1080p',
+  aspectRatio: '16:9',
 });
 
 /**
@@ -482,7 +491,7 @@ export const useStoryStore = defineStore('story', {
             role: 'user',
             parts: [
               {
-                text: generateImageScenePrompt,
+                text: `${generateImageScenePrompt} \nGenerate the image with a ${this.aspectRatio} aspect ratio.`,
               },
             ],
           },
@@ -544,7 +553,11 @@ export const useStoryStore = defineStore('story', {
         generationStatus: 'Starting...',
       });
       try {
-        const video = await createVideo([scene], (status: string) => {
+        const video = await createVideo(
+          [scene],
+          this.resolution,
+          this.aspectRatio,
+          (status: string) => {
           this.updateScene({
             ...scene,
             isGeneratingVideo: true,
@@ -675,6 +688,20 @@ export const useStoryStore = defineStore('story', {
     setVisualStyle(visualStyle: string) {
       this.visualStyle = visualStyle;
     },
+      /**
+     * Sets the resolution for the story.
+     * @param {string} resolution - The resolution.
+     */
+    setResolution(resolution: '720p' | '1080p') {
+      this.resolution = resolution;
+    },
+    /**
+     * Sets the aspect ratio for the story.
+     * @param {string} aspectRatio - The aspect ratio.
+     */
+    setAspectRatio(aspectRatio: '16:9' | '9:16') {
+      this.aspectRatio = aspectRatio;
+    },
     /**
      * Creates the scenes for the story based on the summary, writing style, visual style, and characters.
      */
@@ -723,7 +750,7 @@ export const useStoryStore = defineStore('story', {
       this.updateCharacter({ ...character, isGeneratingImage: true });
       try {
         const prompt = `a portrait of:\n ${JSON.stringify(character)}. \nthe character should look directly into the camera and have a white backround. like in a proffesional headshot for actors`;
-        const image = await generateImage(prompt);
+        const image = await generateImage(prompt, this.aspectRatio);
         const imageUrl = await saveBase64ToGCS(
           image.predictions[0].bytesBase64Encoded,
           'image',

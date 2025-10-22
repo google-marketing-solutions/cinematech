@@ -26,9 +26,13 @@
       :summary="summary"
       :writing-style="writingStyle"
       :visual-style="visualStyle"
+      :resolution="resolution"
+      :aspect-ratio="aspectRatio"
       @update:summary="updateSummary"
       @update:writing-style="updateWritingStyle"
       @update:visual-style="updateVisualStyle"
+      @update:resolution="updateResolution"
+      @update:aspect-ratio="updateAspectRatio"
       :characters="characters"
       @save="saveGuidelines"
       @add-character="addCharacter"
@@ -64,6 +68,8 @@ const summary = computed(() => storyStore.summary);
 const writingStyle = computed(() => storyStore.writingStyle);
 const visualStyle = computed(() => storyStore.visualStyle);
 const characters = computed(() => storyStore.characters);
+const resolution = computed(() => storyStore.resolution);
+const aspectRatio = computed(() => storyStore.aspectRatio);
 const loading = computed(() => storyStore.loading);
 
 const isModalOpen = ref(false);
@@ -79,6 +85,14 @@ const updateWritingStyle = (value: string) => {
 
 const updateVisualStyle = (value: string) => {
   storyStore.setVisualStyle(value);
+};
+
+const updateResolution = (value: '720p' | '1080p') => {
+  storyStore.setResolution(value);
+};
+
+const updateAspectRatio = (value: '16:9' | '9:16') => {
+  storyStore.setAspectRatio(value);
 };
 
 const saveGuidelines = async () => {
@@ -127,8 +141,7 @@ const closeModal = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(
     to right,
     var(--color-primary),
@@ -137,7 +150,9 @@ const closeModal = () => {
   font-family: 'Montserrat', sans-serif;
   color: var(--vt-c-white);
   text-align: center;
-  padding: 20px;
+  padding: 80px 20px 20px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .loading-container {

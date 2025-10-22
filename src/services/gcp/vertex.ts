@@ -107,6 +107,8 @@ async function callVertexApi(
  */
 export async function createVideo(
   scenes: Scene[],
+  resolution: '720p' | '1080p',
+  aspectRatio: '16:9' | '9:16',
   onStatusUpdate: (status: string, operation?: any) => void
 ): Promise<string> {
   const configStore = useConfigStore();
@@ -126,14 +128,14 @@ export async function createVideo(
   const body = {
     instances: instances,
     parameters: {
-      aspectRatio: '16:9',
+      aspectRatio: aspectRatio,
       sampleCount: 1,
       durationSeconds: '8',
       personGeneration: 'allow_all',
       addWatermark: true,
       includeRaiReason: true,
       generateAudio: true,
-      resolution: '720p',
+      resolution: resolution,
     },
   };
 
@@ -272,6 +274,7 @@ export async function generateContent(
  */
 export async function generateImage(
   prompt: string,
+  aspectRatio: '16:9' | '9:16' = '16:9',
   parameters = {}
 ): Promise<any> {
   const configStore = useConfigStore();
@@ -279,7 +282,7 @@ export async function generateImage(
   const apiUrl = `${modelId}:predict`;
 
   const defaultParameters = {
-    aspectRatio: '16:9',
+    aspectRatio: aspectRatio,
     sampleCount: 1,
     negativePrompt: '',
     enhancePrompt: false,

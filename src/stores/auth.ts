@@ -19,10 +19,12 @@ import { defineStore } from 'pinia';
 /**
  * @interface AuthState
  * @property {string | null} accessToken - The user's access token.
+ * @property {number | null} tokenExpiration - The timestamp when the access token expires.
  * @property {string | null} clientId - The Google Client ID.
  */
 interface AuthState {
   accessToken: string | null;
+  tokenExpiration: number | null;
   clientId: string | null;
   env: string;
 }
@@ -36,17 +38,24 @@ export const useAuthStore = defineStore('auth', {
    * @return {AuthState} The initial state.
    */
   state: (): AuthState => ({
-    accessToken: null,
+    accessToken: localStorage.getItem('accessToken') || null,
+    tokenExpiration: Number(localStorage.getItem('tokenExpiration')) || null,
     clientId: localStorage.getItem('googleClientId') || null,
     env: import.meta.env.ENV_NAME || 'dev',
   }),
   actions: {
     /**
-     * Sets the access token.
+     * Sets the access token and its expiration time.
      * @param {string} token - The access token.
+     * @param {number} expiresIn - The token's validity duration in seconds.
      */
-    setAccessToken(token: string) {
+    setAccessToken(token: string, expiresIn: number) {
       this.accessToken = token;
+      // Time to refresh the token is 5 minutes before it expires
+      const expiresInMs = (expiresIn - 300) * 1000;
+      this.tokenExpiration = Date.now() + expiresInMs;
+      localStorage.setItem('accessToken', token);
+      localStorage.setItem('tokenExpiration', String(this.tokenExpiration));
     },
     /**
      * Sets the client ID and saves it to local storage.
@@ -64,6 +73,9 @@ export const useAuthStore = defineStore('auth', {
         google.accounts.oauth2.revoke(this.accessToken, () => {});
       }
       this.accessToken = null;
+      this.tokenExpiration = null;
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('tokenExpiration');
     },
   },
   getters: {
@@ -72,7 +84,13 @@ export const useAuthStore = defineStore('auth', {
      * @param {AuthState} state - The store's state.
      * @return {boolean} True if the user is authenticated, false otherwise.
      */
-    isAuthenticated: (state: AuthState): boolean => !!state.accessToken,
+    isAuthenticated: (state: AuthState): boolean => {
+      return (
+        !!state.accessToken &&
+        !!state.tokenExpiration &&
+        Date.now() < state.tokenExpiration
+      );
+    },
     getEnv: (state: AuthState) => state.env,
   },
 });

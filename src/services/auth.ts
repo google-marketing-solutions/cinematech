@@ -45,7 +45,10 @@ export function initializeGoogleSignIn(
     callback: (tokenResponse) => {
       if (tokenResponse && tokenResponse.access_token) {
         const authStore = useAuthStore();
-        authStore.setAccessToken(tokenResponse.access_token);
+        authStore.setAccessToken(
+          tokenResponse.access_token,
+          Number(tokenResponse.expires_in)
+        );
         router.push({ name: 'prompt' });
       }
     },

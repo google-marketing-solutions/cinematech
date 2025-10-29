@@ -45,6 +45,9 @@ const logout = () => {
 };
 
 onMounted(() => {
+  if (!isAuthenticated.value) {
+    router.push({ name: 'login' });
+  }
   // Initialize stores
   projectStore.fetchProjects();
 });

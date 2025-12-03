@@ -20,12 +20,25 @@
       <h2>Edit Image</h2>
       <div class="chat-interface">
         <div class="messages-container">
-          <div v-if="isLoading" class="loading-spinner"></div>
+          <div v-if="isLoading" class="loading-container">
+            <div class="loading-spinner"></div>
+            <button @click="cancelGeneration" class="cancel-gen-btn">
+              Cancel
+            </button>
+          </div>
           <div v-else-if="displayImageUrl" class="image-wrapper">
-            <img :src="displayImageUrl" alt="Editing image" class="editing-image" />
+            <img
+              :src="displayImageUrl"
+              alt="Editing image"
+              class="editing-image"
+            />
             <div v-if="displayImageUrl !== imageUrl" class="actions-container">
-              <button @click="saveImage" class="action-btn save-btn">Save</button>
-              <button @click="revertImage" class="action-btn cancel-btn">Cancel</button>
+              <button @click="saveImage" class="action-btn save-btn">
+                Save
+              </button>
+              <button @click="revertImage" class="action-btn cancel-btn">
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -37,12 +50,20 @@
           @drop.prevent="handleDrop"
         >
           <div class="thumbnails-container">
-            <div v-for="(image, index) in uploadedImages" :key="index" class="thumbnail">
+            <div
+              v-for="(image, index) in uploadedImages"
+              :key="index"
+              class="thumbnail"
+            >
               <img :src="image" />
             </div>
           </div>
           <div class="input-container">
-            <button @click="triggerFileInput" class="upload-btn">
+            <button
+              @click="triggerFileInput"
+              class="upload-btn"
+              v-tooltip="'Upload Image'"
+            >
               <span class="mdi mdi-upload"></span>
             </button>
             <input
@@ -53,7 +74,12 @@
               accept="image/*"
               style="display: none"
             />
-            <input v-model="prompt" @keyup.enter="sendMessage" type="text" placeholder="Type your message..." />
+            <input
+              v-model="prompt"
+              @keyup.enter="sendMessage"
+              type="text"
+              placeholder="Type your message..."
+            />
             <button @click="sendMessage">Send</button>
           </div>
         </div>
@@ -94,16 +120,20 @@ const uploadedImages = ref<string[]>([]);
 const isDragging = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const prompt = ref('');
+const abortController = ref<AbortController | null>(null);
 
-watch(() => props.show, (newVal) => {
-  if (newVal && props.imageUrl) {
-    displayImageUrl.value = props.imageUrl;
-  } else {
-    displayImageUrl.value = null;
+watch(
+  () => props.show,
+  (newVal) => {
+    if (newVal && props.imageUrl) {
+      displayImageUrl.value = props.imageUrl;
+    } else {
+      displayImageUrl.value = null;
+    }
+    uploadedImages.value = [];
+    prompt.value = '';
   }
-  uploadedImages.value = [];
-  prompt.value = '';
-});
+);
 
 const handleFileUpload = (event: Event) => {
   const files = (event.target as HTMLInputElement).files;
@@ -144,16 +174,24 @@ const sendMessage = async () => {
   if (!prompt.value.trim() && uploadedImages.value.length === 0) return;
 
   isLoading.value = true;
+  abortController.value = new AbortController();
 
   const userParts: any[] = [];
   if (displayImageUrl.value) {
-    userParts.push({ inlineData: { mimeType: 'image/jpeg', data: displayImageUrl.value.split(',')[1] } });
+    userParts.push({
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: displayImageUrl.value.split(',')[1],
+      },
+    });
   }
   if (prompt.value.trim()) {
     userParts.push({ text: prompt.value });
   }
   for (const image of uploadedImages.value) {
-    userParts.push({ inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } });
+    userParts.push({
+      inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] },
+    });
   }
 
   const contents: Content[] = [{ role: 'user', parts: userParts }];
@@ -162,13 +200,27 @@ const sendMessage = async () => {
   uploadedImages.value = [];
 
   try {
-    const response = await generateImageFromContent(contents);
-    const newImage = response[0].candidates[0].content.parts[0].inlineData.data;
+    const response = await generateImageFromContent(
+      contents,
+      abortController.value.signal
+    );
+    const newImage = response.candidates[0].content.parts.findLast(
+      (part: any) => part.inlineData
+    ).inlineData.data;
     displayImageUrl.value = `data:image/jpeg;base64,${newImage}`;
   } catch (error) {
     console.error('Error generating image:', error);
     // Handle error state in UI
   } finally {
+    isLoading.value = false;
+    abortController.value = null;
+  }
+};
+
+const cancelGeneration = () => {
+  if (abortController.value) {
+    abortController.value.abort();
+    abortController.value = null;
     isLoading.value = false;
   }
 };
@@ -321,6 +373,26 @@ const sendMessage = async () => {
   to {
     transform: rotate(360deg);
   }
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.cancel-gen-btn {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cancel-gen-btn:hover {
+  background-color: #5a6268;
 }
 
 .image-wrapper {

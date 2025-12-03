@@ -74,6 +74,7 @@ export const useConfigStore = defineStore('config', {
         newConfig.gcsBucketName !== oldGcsBucketName
       ) {
         const projectStore = useProjectStore();
+        projectStore.clearCurrentProject();
         projectStore.fetchProjects();
       }
     },

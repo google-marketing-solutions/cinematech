@@ -51,6 +51,13 @@ Instructions for writing guidelines:
 - include the characters description in the scene
 - make the characters look realistic. describe the small inperfection in skin, hair etc.
 
+**Dialogue Instructions:**
+- Write dialogue that sounds natural, conversational, and human.
+- Avoid robotic, exposition-heavy, or overly formal language unless the character demands it.
+- Use subtext; characters shouldn't always say exactly what they mean.
+- Ensure dialogue drives the action or reveals character.
+- Keep dialogue concise and punchy.
+
 Here is the prompt for creating the guideline:
 {adSummary}
 
@@ -72,6 +79,87 @@ Use the following style for images and videos:
  * @param {SceneGuidelines} guidelines - The guidelines for generating the scenes.
  * @return {Promise<string>} A promise that resolves with the formatted prompt.
  */
-export const formatScenes = async (
+export async function formatScenes(
   guidelines: SceneGuidelines
-): Promise<string> => genScenesPrompt.format(guidelines);
+): Promise<string> {
+  return genScenesPrompt.format(guidelines);
+}
+
+/**
+ * @interface RegenerateSceneGuidelines
+ * @property {string} adSummary - A summary of the ad.
+ * @property {string} writingStyle - The writing style for the scenes.
+ * @property {string} visualStyle - The visual style for the scenes.
+ * @property {string} currentScene - The current scene content (JSON string).
+ * @property {string} previousScene - The previous scene content (JSON string).
+ * @property {string} nextScene - The next scene content (JSON string).
+ * @property {Character[]} selectedCharacters - An array of characters to be included in the scene.
+ */
+interface RegenerateSceneGuidelines {
+  adSummary: string;
+  writingStyle: string;
+  visualStyle: string;
+  currentScene: string;
+  previousScene: string;
+  nextScene: string;
+  selectedCharacters: Character[];
+  userPrompt?: string;
+}
+
+const regenerateScenePrompt = ChatPromptTemplate.fromMessages([
+  [
+    'system',
+    `You are an expert creative director. Regenerate the scene based on the given context and selected characters.
+The scene should be consistent with the previous and next scenes (if provided) and must include the selected characters.
+Maintain the original style and tone but update the content to reflect the changes.`,
+  ],
+  [
+    'system',
+    `
+Instructions for regenerating the scene:
+- Keep the scene length max 8 seconds.
+- Be very detailed in the description (camera motion, colors, background).
+- Ensure the selected characters are present and their descriptions are integrated.
+- If no previous/next scene is provided, treat it as the first/last scene respectively.
+
+**Dialogue Instructions:**
+- Write dialogue that sounds natural, conversational, and human.
+- Avoid robotic, exposition-heavy, or overly formal language unless the character demands it.
+- Use subtext; characters shouldn't always say exactly what they mean.
+- Ensure dialogue drives the action or reveals character.
+- Keep dialogue concise and punchy.
+
+Context:
+Ad Summary: {adSummary}
+Writing Style: {writingStyle}
+Visual Style: {visualStyle}
+
+Previous Scene:
+{previousScene}
+
+Current Scene (to be modified):
+{currentScene}
+
+Next Scene:
+{nextScene}
+
+Selected Characters (MUST be included):
+{selectedCharacters}
+
+User Instructions (Optional):
+{userPrompt}
+`,
+  ],
+  ['user', 'Please regenerate the scene'],
+]);
+
+/**
+ * Formats the regenerate scene prompt with the given guidelines.
+ * @param {RegenerateSceneGuidelines} guidelines - The guidelines for regenerating the scene.
+ * @return {Promise<string>} A promise that resolves with the formatted prompt.
+ */
+export async function formatRegenerateScene(
+  guidelines: RegenerateSceneGuidelines
+): Promise<string> {
+  return regenerateScenePrompt.format(guidelines);
+}

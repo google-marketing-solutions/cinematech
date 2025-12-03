@@ -21,10 +21,19 @@
         <div class="form-group">
           <label>Resolution</label>
           <div class="radio-group">
-            <label v-for="resValue in resolutionOptions" :key="resValue" class="radio-pill"
-              :class="{ active: resolution === resValue }">
-              <input type="radio" name="resolution" :value="resValue" :checked="resolution === resValue"
-                @change="$emit('update:resolution', resValue)" />
+            <label
+              v-for="resValue in resolutionOptions"
+              :key="resValue"
+              class="radio-pill"
+              :class="{ active: resolution === resValue }"
+            >
+              <input
+                type="radio"
+                name="resolution"
+                :value="resValue"
+                :checked="resolution === resValue"
+                @change="$emit('update:resolution', resValue)"
+              />
               {{ resValue }}
             </label>
           </div>
@@ -32,10 +41,19 @@
         <div class="form-group">
           <label>Aspect Ratio</label>
           <div class="radio-group">
-            <label v-for="ratioValue in aspectRatioOptions" :key="ratioValue" class="radio-pill"
-              :class="{ active: aspectRatio === ratioValue }">
-              <input type="radio" name="aspectRatio" :value="ratioValue" :checked="aspectRatio === ratioValue"
-                @change="$emit('update:aspectRatio', ratioValue)" />
+            <label
+              v-for="ratioValue in aspectRatioOptions"
+              :key="ratioValue"
+              class="radio-pill"
+              :class="{ active: aspectRatio === ratioValue }"
+            >
+              <input
+                type="radio"
+                name="aspectRatio"
+                :value="ratioValue"
+                :checked="aspectRatio === ratioValue"
+                @change="$emit('update:aspectRatio', ratioValue)"
+              />
               {{ ratioValue }}
             </label>
           </div>
@@ -43,32 +61,54 @@
       </div>
     </div>
     <div class="form-group">
-      <label for="summary">Ad Summary</label>
-      <textarea id="summary" :value="summary" @input="
-        $emit('update:summary', ($event.target as HTMLTextAreaElement).value)
-        " placeholder="A brief summary of the ad..."></textarea>
+      <label for="summary">Project Overview</label>
+      <textarea
+        id="summary"
+        :value="summary"
+        @input="
+          $emit('update:summary', ($event.target as HTMLTextAreaElement).value)
+        "
+        placeholder="A brief overview of the project concept and goals..."
+      ></textarea>
     </div>
     <div class="form-group">
-      <label for="writing-style">Writing Style</label>
-      <textarea id="writing-style" :value="writingStyle" @input="
-        $emit(
-          'update:writingStyle',
-          ($event.target as HTMLTextAreaElement).value
-        )
-        " placeholder="Describe the writing style (e.g., gritty, poetic, humorous)..."></textarea>
+      <label for="writing-style">Tone of Voice</label>
+      <textarea
+        id="writing-style"
+        :value="writingStyle"
+        @input="
+          $emit(
+            'update:writingStyle',
+            ($event.target as HTMLTextAreaElement).value
+          )
+        "
+        placeholder="Describe the tone and personality (e.g., professional, witty, emotional)..."
+      ></textarea>
     </div>
     <div class="form-group">
-      <label for="visual-style">Visual Style</label>
-      <textarea id="visual-style" :value="visualStyle" @input="
-        $emit(
-          'update:visualStyle',
-          ($event.target as HTMLTextAreaElement).value
-        )
-        " placeholder="Describe the visual style (e.g., cinematic, documentary, found footage)..."></textarea>
+      <label for="visual-style">Art Direction</label>
+      <textarea
+        id="visual-style"
+        :value="visualStyle"
+        @input="
+          $emit(
+            'update:visualStyle',
+            ($event.target as HTMLTextAreaElement).value
+          )
+        "
+        placeholder="Describe the visual language and aesthetic (e.g., cinematic, minimalist, vibrant)..."
+      ></textarea>
     </div>
-    <CharacterList :characters="characters" @add="$emit('add-character')" @edit="$emit('edit-character', $event)"
-      @generate="$emit('generate-character', $event)" @delete-image="$emit('delete-character-image', $event)"
-      @upload="$emit('upload-character-image', $event)" />
+    <CharacterList
+      :characters="characters"
+      @add="$emit('add-character')"
+      @edit="$emit('edit-character', $event)"
+      @generate="$emit('generate-character', $event)"
+      @delete-image="$emit('delete-character-image', $event)"
+      @upload="$emit('upload-character-image', $event)"
+      @update-image="$emit('update-character-image', $event)"
+      @cancel-generation="$emit('cancel-character-generation', $event)"
+    />
     <button @click="$emit('save')">Save Guidelines</button>
   </div>
 </template>
@@ -76,16 +116,7 @@
 <script setup lang="ts">
 import CharacterList from './CharacterList.vue';
 import type { Character } from '@/types';
-
-enum VideoResolution {
-  HD = '720p',
-  FullHD = '1080p'
-}
-
-enum VideoAspectRatio {
-  LANDSCAPE = '16:9',
-  PORTRAIT = '9:16'
-}
+import { VideoResolution, VideoAspectRatio } from '@/types';
 
 const resolutionOptions = Object.values(VideoResolution);
 const aspectRatioOptions = Object.values(VideoAspectRatio);
@@ -117,6 +148,11 @@ defineEmits<{
   (e: 'generate-character', character: Character): void;
   (e: 'delete-character-image', character: Character): void;
   (e: 'upload-character-image', character: Character): void;
+  (
+    e: 'update-character-image',
+    { character, imageUrl }: { character: Character; imageUrl: string }
+  ): void;
+  (e: 'cancel-character-generation', character: Character): void;
   (e: 'save'): void;
 }>();
 </script>

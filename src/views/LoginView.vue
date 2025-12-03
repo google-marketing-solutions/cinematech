@@ -111,11 +111,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: radial-gradient(
-    ellipse at bottom,
-    var(--color-surface),
-    var(--color-background)
-  );
+  background: var(--color-background);
 }
 
 .login-card {

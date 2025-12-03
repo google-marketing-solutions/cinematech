@@ -53,12 +53,8 @@ const createStory = async () => {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(
-    to right,
-    var(--color-primary),
-    var(--color-secondary)
-  );
-  font-family: 'Montserrat', sans-serif;
+  background: var(--color-background);
+  font-family: var(--font-primary);
   color: var(--vt-c-white);
   text-align: center;
   padding: 20px;

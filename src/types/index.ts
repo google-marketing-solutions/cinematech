@@ -60,26 +60,77 @@ export interface VideoDirectives {
 }
 
 /**
+ * Represents the controls and parameters for a camera within a scene.
+ * This is used to describe how the scene is framed and captured.
+ */
+export interface CameraControl {
+  angle: string;
+  movement: string;
+  type: string;
+  lens?: string;
+}
+
+/**
+ * Represents the audio elements and parameters for a scene.
+ * This is used to describe the sound elements of the scene.
+ */
+export interface AudioPrompt {
+  dialogue?: string;
+  ambient?: string;
+  music?: string;
+  soundEffects?: string;
+}
+
+/**
+ * Represents the visual style and parameters for a scene.
+ * This is used to describe the visual elements of the scene.
+ */
+export interface VisualStyle {
+  artStyle: string;
+  lighting: string;
+  colorPalette: string;
+  mood: string;
+}
+
+/**
  * Represents a single scene in the story.
  */
 export interface Scene {
   id: number;
   title: string;
   description: string;
-  background: string;
+  background: string; // Maps to environment in schema? Schema has environment.
   script: string;
+
+  // New Structured Fields
+  subject: string;
+  action: string;
+  environment: string;
+  camera: CameraControl;
+  audio: AudioPrompt;
+  style: VisualStyle;
+  negativePrompt?: string;
+
   image?: string;
   video?: string;
-  imageDirectives: ImageDirectives;
-  videoDirectives: VideoDirectives;
+  lastFrame?: string;
+  durationSeconds?: string;
+  type?: 'default' | 'first-to-last';
+
+  // Legacy fields
+  imageDirectives?: ImageDirectives;
+  videoDirectives?: VideoDirectives;
+
   characters: Character[];
   isGeneratingImage?: boolean;
   isGeneratingVideo?: boolean;
+  isRegenerating?: boolean;
   generationStatus?: string;
   isUploadingImage?: boolean;
   isUploadingVideo?: boolean;
   isUpscaling?: boolean;
   imageToVideo?: boolean;
+  isUploadingLastFrame?: boolean;
 }
 
 /**
@@ -121,4 +172,99 @@ export interface Part {
 export interface Content {
   role: 'user' | 'model';
   parts: Part[];
+}
+
+/**
+ * Represents the resolution of a video.
+ */
+export enum VideoResolution {
+  HD = '720p',
+  FullHD = '1080p',
+}
+
+/**
+ * Represents the aspect ratio of a video.
+ */
+export enum VideoAspectRatio {
+  LANDSCAPE = '16:9',
+  PORTRAIT = '9:16',
+}
+
+/**
+ * Represents a node in the file system (GCS).
+ */
+export interface FileSystemNode {
+  id: string; // gcsUri or prefix
+  name: string;
+  type: 'file' | 'folder';
+  gcsUri: string;
+  mimeType?: string;
+  size?: number;
+  updated?: string;
+  duration?: number;
+}
+
+/**
+ * Represents a track in a video editing timeline, which can hold video, audio, or text clips.
+ */
+export interface Track {
+  id: string;
+  type: 'video' | 'audio' | 'text';
+  name: string;
+  isMuted: boolean;
+  isLocked: boolean;
+}
+
+/**
+ * Represents a single clip within a Track in a video editing timeline.
+ */
+export interface Clip {
+  id: string;
+  trackId: string;
+  assetId: string | number; // Maps to Scene.id (number) or GCS URI (string)
+  startTime: number; // In seconds
+  duration: number; // In seconds
+  offset: number; // In seconds (start time within the source asset)
+  mediaType?: 'video' | 'image' | 'text' | 'audio';
+  // Visual properties
+  scale?: number;
+  position?: { x: number; y: number };
+  rotation?: number;
+  opacity?: number;
+  // Audio properties
+  volume?: number;
+  // Text properties
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  color?: string;
+  // Effects
+  effects?: string[];
+  // Transition
+  transition?: {
+    type:
+      | 'fade'
+      | 'wipeleft'
+      | 'wiperight'
+      | 'slideleft'
+      | 'slideright'
+      | 'circlecrop';
+    duration: number; // in seconds
+  };
+}
+
+/**
+ * Represents a transition between scenes.
+ */
+export interface Transition {
+  id: string;
+  name: string;
+  type:
+    | 'fade'
+    | 'wipeleft'
+    | 'wiperight'
+    | 'slideleft'
+    | 'slideright'
+    | 'circlecrop';
+  icon: string;
 }

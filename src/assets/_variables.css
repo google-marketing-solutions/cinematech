@@ -20,6 +20,9 @@
   --color-error: #ff4d4d;
   --color-warning: #ffcc00;
 
+  --color-primary: #0f0c29;
+  --color-secondary: #302b63;
+  --vt-c-white: #ffffff;
   /* Spacing & Sizing */
   --spacing-unit: 8px;
   --spacing-xs: calc(0.5 * var(--spacing-unit)); /* 4px */
@@ -31,6 +34,10 @@
   --border-radius-sm: 4px;
   --border-radius-md: 8px;
   --border-radius-lg: 16px;
+  --border-radius-xl: 24px;
+
+  --color-surface-variant: #2c2c2c;
+  --color-text-disabled: #666666;
 
   --layout-padding: var(--spacing-lg);
 

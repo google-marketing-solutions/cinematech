@@ -16,7 +16,10 @@
 import { defineStore } from 'pinia';
 import { useToast } from '@/composables/useToast';
 import { formatGuidelines } from '../services/prompts/guidelines.ts';
-import { formatScenes } from '../services/prompts/scenes.ts';
+import {
+  formatScenes,
+  formatRegenerateScene,
+} from '../services/prompts/scenes.ts';
 import {
   createVideo,
   generateContent,
@@ -24,6 +27,7 @@ import {
   generateImageFromContent,
   generateImage,
 } from '../services/gcp/vertex.ts';
+import { buildGeminiImagePrompt } from '../services/prompts/builders.ts';
 import {
   saveBase64ToGCS,
   uploadTypedFileToGCS,
@@ -32,22 +36,24 @@ import {
   uploadFileToGCS,
   downloadFileFromGCS,
 } from '@/services/gcp/gcs.ts';
-import { getLastFrame } from '../services/video.ts';
+import { getLastFrame, getVideoDuration } from '../services/video.ts';
 import {
   GuidelinesJsonSchema,
   ScriptJsonSchema,
+  SceneJsonSchema,
 } from '@/services/prompts/schemas.ts';
 import { createFinalVideo } from '../services/ffmpeg.ts';
 import { useVideoStore } from './video.ts';
 import { useProjectStore } from './project.ts';
 import { useConfigStore } from './config.ts';
+import { VideoResolution, VideoAspectRatio } from '@/types';
 import type { StoryState, Scene, Character, Content } from '@/types';
 
 // Add resolution and aspectRatio to the StoryState interface
 declare module '@/types' {
   interface StoryState {
-    resolution: '720p' | '1080p';
-    aspectRatio: '16:9' | '9:16';
+    resolution: VideoResolution;
+    aspectRatio: VideoAspectRatio;
   }
 }
 
@@ -103,7 +109,7 @@ Your processing must follow this strict order of priority:
 
 ### SUMMARY
 Create the scene from the JSON, but populate it with characters who look *exactly* like the reference images, while wearing the clothes and performing the actions described in the JSON.
-`
+`;
 
 /**
  * Returns the initial state for the story store.
@@ -119,9 +125,16 @@ const getInitialState = (): Omit<
   visualStyle: '',
   characters: [],
   scenes: [],
-  resolution: '1080p',
-  aspectRatio: '16:9',
+  resolution: VideoResolution.FullHD,
+  aspectRatio: VideoAspectRatio.LANDSCAPE,
 });
+
+const generationControllers = new Map<string, AbortController>();
+
+import {
+  migrateProject,
+  CURRENT_SCHEMA_VERSION,
+} from '../services/migration.ts';
 
 /**
  * Pinia store for managing the story creation process.
@@ -138,6 +151,11 @@ export const useStoryStore = defineStore('story', {
     isEditModalVisible: false,
     currentScene: null,
   }),
+  getters: {
+    getSceneById: (state) => (id: number) => {
+      return state.scenes.find((scene) => scene.id === id);
+    },
+  },
   actions: {
     /**
      * Loads a project from GCS.
@@ -149,7 +167,8 @@ export const useStoryStore = defineStore('story', {
       try {
         const configStore = useConfigStore();
         const gcsUri = `gs://${configStore.gcsBucketName}/${projectId}/project.json`;
-        const projectData = await downloadFileFromGCS(gcsUri, 'json');
+        const rawProjectData = await downloadFileFromGCS(gcsUri, 'json');
+        const projectData = migrateProject(rawProjectData);
 
         Object.assign(this, getInitialState());
 
@@ -161,12 +180,15 @@ export const useStoryStore = defineStore('story', {
           this.characters = projectData.characters || [];
           this.scenes = projectData.scenes || [];
           this.finalVideo = projectData.finalVideo || undefined;
+          this.aspectRatio =
+            projectData.aspectRatio || VideoAspectRatio.LANDSCAPE;
+          this.resolution = projectData.resolution || VideoResolution.FullHD;
         }
-      } catch (error: any) {
-        if (error.message.includes('404')) {
+      } catch (error: unknown) {
+        if ((error as Error).message.includes('404')) {
           Object.assign(this, getInitialState());
         } else {
-          this.error = `Failed to load project data: ${error.message}`;
+          this.error = `Failed to load project data: ${(error as Error).message}`;
           console.error(this.error);
         }
       } finally {
@@ -184,6 +206,7 @@ export const useStoryStore = defineStore('story', {
       try {
         const configStore = useConfigStore();
         const projectData = {
+          version: CURRENT_SCHEMA_VERSION,
           prompt: this.prompt,
           summary: this.summary,
           writingStyle: this.writingStyle,
@@ -191,6 +214,8 @@ export const useStoryStore = defineStore('story', {
           characters: this.characters,
           scenes: this.scenes,
           finalVideo: this.finalVideo,
+          aspectRatio: this.aspectRatio,
+          resolution: this.resolution,
         };
         const blob = new Blob([JSON.stringify(projectData, null, 2)], {
           type: 'application/json',
@@ -205,8 +230,8 @@ export const useStoryStore = defineStore('story', {
           configStore.gcsBucketName,
           targetProjectId
         );
-      } catch (error: any) {
-        this.error = `Failed to save project: ${error.message}`;
+      } catch (error: unknown) {
+        this.error = `Failed to save project: ${(error as Error).message}`;
         console.error(this.error);
       }
     },
@@ -257,6 +282,34 @@ export const useStoryStore = defineStore('story', {
         }
       });
     },
+
+    async updateCharacterImage(character: Character, imageUrl: string) {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
+
+      this.updateCharacter({ ...character, isUploadingImage: true });
+      try {
+        const newImageUrl = await saveBase64ToGCS(
+          imageUrl.split(',')[1],
+          'image',
+          'image/png',
+          undefined,
+          projectId
+        );
+        const updatedCharacter = {
+          ...character,
+          image: newImageUrl,
+          isUploadingImage: false,
+        };
+        this.updateCharacter(updatedCharacter);
+        this.saveProject(projectId);
+      } catch (error: unknown) {
+        console.error('Failed to update character image:', error);
+        this.updateCharacter({ ...character, isUploadingImage: false });
+      }
+    },
+
     /**
      * Sets the prompt for the story.
      * @param {string} prompt - The prompt.
@@ -276,7 +329,9 @@ export const useStoryStore = defineStore('story', {
       this.characters = [];
       this.scenes = [];
       try {
+        const configStore = useConfigStore();
         const res = await generateContent(
+          configStore.geminiTextModel,
           await formatGuidelines(this.prompt),
           await GuidelinesJsonSchema
         );
@@ -295,8 +350,8 @@ export const useStoryStore = defineStore('story', {
             characterId: c.characterId || `char-${Date.now() + index}`,
           }))
         );
-      } catch (error: any) {
-        this.error = error;
+      } catch (error: unknown) {
+        this.error = (error as Error).message;
         console.error('Error creating story:', error);
       } finally {
         this.loading = false;
@@ -314,6 +369,29 @@ export const useStoryStore = defineStore('story', {
         script: '',
         image: undefined,
         video: undefined,
+        durationSeconds: '8',
+        // New Structured Fields
+        subject: '',
+        action: '',
+        environment: '',
+        camera: {
+          angle: '',
+          movement: '',
+          type: '',
+        },
+        audio: {
+          dialogue: '',
+          ambient: '',
+          music: '',
+          soundEffects: '',
+        },
+        style: {
+          artStyle: '',
+          lighting: '',
+          colorPalette: '',
+          mood: '',
+        },
+        // Legacy fields (optional)
         imageDirectives: {
           description: '',
           style: '',
@@ -330,6 +408,7 @@ export const useStoryStore = defineStore('story', {
           transition: '',
         },
         characters: [],
+        type: 'default',
       });
     },
     /**
@@ -342,6 +421,131 @@ export const useStoryStore = defineStore('story', {
       );
       if (index !== -1) {
         this.scenes[index] = updatedScene;
+        // Also update currentScene if it matches
+        if (this.currentScene && this.currentScene.id === updatedScene.id) {
+          this.currentScene = updatedScene;
+        }
+      }
+    },
+    /**
+     * Reorders scenes in the story.
+     * @param {number} fromIndex - The index of the scene to move.
+     * @param {number} toIndex - The index to move the scene to.
+     */
+    async reorderScenes(fromIndex: number, toIndex: number) {
+      if (
+        fromIndex < 0 ||
+        fromIndex >= this.scenes.length ||
+        toIndex < 0 ||
+        toIndex >= this.scenes.length ||
+        fromIndex === toIndex
+      ) {
+        return;
+      }
+
+      const [movedScene] = this.scenes.splice(fromIndex, 1);
+      this.scenes.splice(toIndex, 0, movedScene);
+
+      const projectStore = useProjectStore();
+      if (projectStore.currentProjectId) {
+        await this.saveProject(projectStore.currentProjectId);
+      }
+    },
+    /**
+     * Regenerates a scene based on selected characters and context.
+     * @param {number} sceneId - The ID of the scene to regenerate.
+     * @param {string[]} characterIds - The IDs of the characters to include.
+     */
+    async regenerateScene(
+      sceneId: number,
+      characterIds: string[],
+      userPrompt?: string
+    ) {
+      const sceneIndex = this.scenes.findIndex((s) => s.id === sceneId);
+      if (sceneIndex === -1) return;
+
+      const scene = this.scenes[sceneIndex];
+      const previousScene = sceneIndex > 0 ? this.scenes[sceneIndex - 1] : null;
+      const nextScene =
+        sceneIndex < this.scenes.length - 1
+          ? this.scenes[sceneIndex + 1]
+          : null;
+
+      const selectedCharacters = this.characters.filter((c) =>
+        characterIds.includes(c.characterId!)
+      );
+
+      this.updateScene({ ...scene, isRegenerating: true });
+
+      try {
+        const prompt = await formatRegenerateScene({
+          adSummary: this.summary,
+          writingStyle: this.writingStyle,
+          visualStyle: this.visualStyle,
+          currentScene: JSON.stringify(scene),
+          previousScene: previousScene ? JSON.stringify(previousScene) : '',
+          nextScene: nextScene ? JSON.stringify(nextScene) : '',
+          selectedCharacters,
+          userPrompt: userPrompt || '',
+        });
+
+        const configStore = useConfigStore();
+        const res = await generateContent(
+          configStore.geminiTextModel,
+          prompt,
+          await SceneJsonSchema
+        );
+        const newSceneData = JSON.parse(
+          res.candidates[0].content.parts[0].text
+        );
+
+        // Merge new data with existing scene, preserving ID and media
+        const updatedScene = {
+          ...scene,
+          ...newSceneData,
+          id: scene.id, // Ensure ID doesn't change
+          image: scene.image, // Preserve existing media
+          video: scene.video, // Preserve existing media
+          characters: selectedCharacters, // Update characters to selected ones (or should we trust the AI? AI might add more? Plan said force selected)
+          // Actually, let's trust the AI's output for fields but ensure characters are what we asked for if the AI returns them.
+          // The AI returns a scene object. We should probably map the characterIds back to objects if the AI returns IDs,
+          // but our prompt asks for the scene object which might include characterIds.
+          // Let's assume the AI returns a Scene object structure.
+        };
+
+        // Ensure audio.dialogue is populated if script exists but dialogue is missing
+        if (!updatedScene.audio) {
+          updatedScene.audio = {
+            dialogue: updatedScene.script || '',
+            ambient: '',
+            music: '',
+            soundEffects: '',
+          };
+        } else if (!updatedScene.audio.dialogue && updatedScene.script) {
+          updatedScene.audio.dialogue = updatedScene.script;
+        }
+
+        // If the AI returns characterIds, we need to map them back to full objects
+        if (newSceneData.characterIds) {
+          updatedScene.characters = newSceneData.characterIds
+            .map((id: string) => {
+              return this.characters.find((c) => c.characterId === id);
+            })
+            .filter((c: Character | undefined): c is Character => !!c);
+        } else {
+          // Fallback if AI doesn't return characterIds but we know what we selected
+          updatedScene.characters = selectedCharacters;
+        }
+
+        this.updateScene({ ...updatedScene, isRegenerating: false });
+      } catch (error: unknown) {
+        console.error('Failed to regenerate scene:', error);
+        const { showToast } = useToast();
+        showToast(
+          `Failed to regenerate scene: ${(error as Error).message}`,
+          'error'
+        );
+        this.updateScene({ ...scene, isRegenerating: false });
       }
     },
     /**
@@ -370,7 +574,7 @@ export const useStoryStore = defineStore('story', {
       if (scene.image) {
         try {
           await deleteFileFromGCS(scene.image);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Failed to delete image from GCS:`, error);
         }
       }
@@ -378,7 +582,7 @@ export const useStoryStore = defineStore('story', {
       if (scene.video) {
         try {
           await deleteFileFromGCS(scene.video);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Failed to delete video from GCS:`, error);
         }
       }
@@ -388,9 +592,12 @@ export const useStoryStore = defineStore('story', {
     /**
      * Deletes the media for a scene.
      * @param {number} sceneId - The ID of the scene.
-     * @param {'image' | 'video'} mediaType - The type of media to delete.
+     * @param {'image' | 'video' | 'lastFrame'} mediaType - The type of media to delete.
      */
-    async deleteSceneMedia(sceneId: number, mediaType: 'image' | 'video') {
+    async deleteSceneMedia(
+      sceneId: number,
+      mediaType: 'image' | 'video' | 'lastFrame'
+    ) {
       const scene = this.scenes.find((s) => s.id === sceneId);
       if (!scene) return;
 
@@ -400,7 +607,7 @@ export const useStoryStore = defineStore('story', {
           await deleteFileFromGCS(mediaUri);
           const updatedScene = { ...scene, [mediaType]: undefined };
           this.updateScene(updatedScene);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Failed to delete ${mediaType} from GCS:`, error);
         }
       }
@@ -409,32 +616,60 @@ export const useStoryStore = defineStore('story', {
      * Uploads media for a scene.
      * @param {Scene} scene - The scene to upload media for.
      * @param {File} file - The media file to upload.
-     * @param {'image' | 'video'} mediaType - The type of media to upload.
+     * @param {'image' | 'video' | 'lastFrame'} mediaType - The type of media to upload.
      */
     async uploadMediaForScene(
       scene: Scene,
       file: File,
-      mediaType: 'image' | 'video'
+      mediaType: 'image' | 'video' | 'lastFrame'
     ) {
       const projectStore = useProjectStore();
       if (!projectStore.currentProjectId) return;
-      const isUploadingKey =
-        mediaType === 'image' ? 'isUploadingImage' : 'isUploadingVideo';
+      let isUploadingKey:
+        | 'isUploadingImage'
+        | 'isUploadingVideo'
+        | 'isUploadingLastFrame';
+      if (mediaType === 'image') {
+        isUploadingKey = 'isUploadingImage';
+      } else if (mediaType === 'video') {
+        isUploadingKey = 'isUploadingVideo';
+      } else {
+        isUploadingKey = 'isUploadingLastFrame';
+      }
+
       this.updateScene({ ...scene, [isUploadingKey]: true });
       try {
+        // map lastFrame to 'image' type for GCS upload if needed, or just keep 'lastFrame' if backend supports it.
+        // uploadTypedFileToGCS uses the type for folder structure usually.
+        // Let's use 'image' for lastFrame as it is an image.
+        const uploadType = mediaType === 'lastFrame' ? 'image' : mediaType;
+
         const mediaUri = await uploadTypedFileToGCS(
           file,
-          mediaType,
+          uploadType,
           undefined,
           projectStore.currentProjectId
         );
+
+        let durationSeconds = scene.durationSeconds;
+        if (mediaType === 'video') {
+          try {
+            const duration = await getVideoDuration(file);
+            durationSeconds = duration.toString();
+          } catch (e) {
+            console.error('Failed to get video duration:', e);
+          }
+        }
+
         const updatedScene = {
           ...scene,
           [mediaType]: mediaUri,
           [isUploadingKey]: false,
+          durationSeconds:
+            mediaType === 'video' ? durationSeconds : scene.durationSeconds,
         };
         this.updateScene(updatedScene);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(`Failed to upload ${mediaType}:`, error);
         this.updateScene({ ...scene, [isUploadingKey]: false });
       }
@@ -451,7 +686,10 @@ export const useStoryStore = defineStore('story', {
       }
       this.loading = true;
       try {
-        const finalVideoData = await createFinalVideo(this.scenes);
+        const finalVideoData = await createFinalVideo(
+          this.scenes,
+          this.aspectRatio
+        );
         const blob = new Blob([finalVideoData.slice()], { type: 'video/mp4' });
         const file = new File([blob], `merged.mp4`, {
           type: 'video/mp4',
@@ -469,9 +707,9 @@ export const useStoryStore = defineStore('story', {
         const videoStore = useVideoStore();
         videoStore.setVideoUrl(gcsUri);
         return gcsUri;
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to create video:', error);
-        this.error = error;
+        this.error = (error as Error).message;
       } finally {
         this.loading = false;
       }
@@ -490,13 +728,62 @@ export const useStoryStore = defineStore('story', {
           undefined,
           projectId
         );
-        const updatedScene = { ...scene, image: newImageUrl, isUploadingImage: false };
+        const updatedScene = {
+          ...scene,
+          image: newImageUrl,
+          isUploadingImage: false,
+        };
         this.updateScene(updatedScene);
         this.saveProject(projectId);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Failed to update scene image:', error);
         this.updateScene({ ...scene, isUploadingImage: false });
       }
+    },
+    async updateSceneLastFrame(scene: Scene, imageUrl: string) {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
+
+      this.updateScene({ ...scene, isUploadingLastFrame: true });
+      try {
+        const newImageUrl = await saveBase64ToGCS(
+          imageUrl.split(',')[1],
+          'image',
+          'image/png',
+          undefined,
+          projectId
+        );
+        const updatedScene = {
+          ...scene,
+          lastFrame: newImageUrl,
+          isUploadingLastFrame: false,
+        };
+        this.updateScene(updatedScene);
+        this.saveProject(projectId);
+      } catch (error: unknown) {
+        console.error('Failed to update scene last frame:', error);
+        this.updateScene({ ...scene, isUploadingLastFrame: false });
+      }
+    },
+    async updateSceneDuration(scene: Scene, duration: string) {
+      // Logger.debug('StoryStore', `updateSceneDuration: ${scene.id} ${duration}`);
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
+
+      const updatedScene = { ...scene, durationSeconds: duration };
+      this.updateScene(updatedScene);
+      this.saveProject(projectId);
+    },
+    async updateSceneType(scene: Scene, type: 'default' | 'first-to-last') {
+      const projectStore = useProjectStore();
+      const projectId = projectStore.currentProjectId;
+      if (!projectId) return;
+
+      const updatedScene = { ...scene, type };
+      this.updateScene(updatedScene);
+      this.saveProject(projectId);
     },
     /**
      * Generates an image for a scene.
@@ -507,20 +794,23 @@ export const useStoryStore = defineStore('story', {
       const projectId = projectStore.currentProjectId;
       if (!projectId) return;
       this.updateScene({ ...scene, isGeneratingImage: true });
+      const controller = new AbortController();
+      generationControllers.set(`image-${scene.id}`, controller);
       try {
         const contents: Content[] = [
           {
             role: 'user',
             parts: [
               {
-                text: `${generateImageScenePrompt} \nGenerate the image with a ${this.aspectRatio} aspect ratio.`,
+                text: `${generateImageScenePrompt} \nGenerate the image with a ${this.aspectRatio} aspect ratio.\n\nScene Details:\n${buildGeminiImagePrompt(scene)}`,
               },
             ],
           },
-          {
-            role: 'user',
-            parts: [{ text: JSON.stringify(scene.imageDirectives) }],
-          },
+          // Legacy directives removed from prompt as we use the builder now
+          // {
+          //   role: 'user',
+          //   parts: [{ text: JSON.stringify(scene.imageDirectives) }],
+          // },
         ];
 
         console.log('scene.characters', scene.characters);
@@ -539,12 +829,17 @@ export const useStoryStore = defineStore('story', {
           }
         }
 
-        const response = await generateImageFromContent(contents);
+        const response = await generateImageFromContent(
+          contents,
+          controller.signal
+        );
 
         const updatedScene = {
           ...scene,
           image: await saveBase64ToGCS(
-            response[0].candidates[0].content.parts[0].inlineData.data,
+            response.candidates[0].content.parts.findLast((part: {
+              inlineData?: { data: string };
+            }) => part.inlineData)!.inlineData!.data,
             'image',
             'image/png',
             undefined,
@@ -554,11 +849,16 @@ export const useStoryStore = defineStore('story', {
         };
         this.updateScene(updatedScene);
         this.saveProject(projectId);
-      } catch (error: any) {
+      } catch (error: unknown) {
         const { showToast } = useToast();
-        showToast(`Failed to generate image: ${error.message}`, 'error');
+        showToast(
+          `Failed to generate image: ${(error as Error).message}`,
+          'error'
+        );
         console.error('Failed to generate image:', error);
         this.updateScene({ ...scene, isGeneratingImage: false });
+      } finally {
+        generationControllers.delete(`image-${scene.id}`);
       }
     },
     /**
@@ -569,29 +869,42 @@ export const useStoryStore = defineStore('story', {
       const projectStore = useProjectStore();
       const projectId = projectStore.currentProjectId;
       if (!projectId) return;
+      // Ensure durationSeconds is set
+      if (!scene.durationSeconds) {
+        scene.durationSeconds = '8';
+      }
+
       this.updateScene({
         ...scene,
         isGeneratingVideo: true,
         generationStatus: 'Starting...',
       });
+      await this.saveProject(projectId);
+
       try {
+        const controller = new AbortController();
+        generationControllers.set(`video-${scene.id}`, controller);
         const video = await createVideo(
           [scene],
           this.resolution,
           this.aspectRatio,
+          scene.durationSeconds,
           (status: string) => {
-          this.updateScene({
-            ...scene,
-            isGeneratingVideo: true,
-            generationStatus: status,
-          });
-        });
+            this.updateScene({
+              ...scene,
+              isGeneratingVideo: true,
+              generationStatus: status,
+            });
+          },
+          controller.signal
+        );
         const videoUri = await saveBase64ToGCS(
           video,
           'video',
           'video/mp4',
           undefined,
-          projectId
+          projectId,
+          { duration: scene.durationSeconds }
         );
         const updatedScene = {
           ...scene,
@@ -610,6 +923,8 @@ export const useStoryStore = defineStore('story', {
           isGeneratingVideo: false,
           generationStatus: `Error: ${error.message}`,
         });
+      } finally {
+        generationControllers.delete(`video-${scene.id}`);
       }
     },
     /**
@@ -617,9 +932,33 @@ export const useStoryStore = defineStore('story', {
      * @param {number} sceneId - The ID of the scene.
      */
     cancelVideoGeneration(sceneId: number) {
+      const controller = generationControllers.get(`video-${sceneId}`);
+      if (controller) {
+        controller.abort();
+        generationControllers.delete(`video-${sceneId}`);
+      }
       const scene = this.scenes.find((s) => s.id === sceneId);
       if (scene) {
-        this.updateScene({ ...scene, isGeneratingVideo: false });
+        this.updateScene({
+          ...scene,
+          isGeneratingVideo: false,
+          generationStatus: 'Cancelled',
+        });
+      }
+    },
+    /**
+     * Cancels the image generation for a scene.
+     * @param {number} sceneId - The ID of the scene.
+     */
+    cancelImageGeneration(sceneId: number) {
+      const controller = generationControllers.get(`image-${sceneId}`);
+      if (controller) {
+        controller.abort();
+        generationControllers.delete(`image-${sceneId}`);
+      }
+      const scene = this.scenes.find((s) => s.id === sceneId);
+      if (scene) {
+        this.updateScene({ ...scene, isGeneratingImage: false });
       }
     },
     /**
@@ -672,8 +1011,14 @@ export const useStoryStore = defineStore('story', {
       if (!projectId) return;
       if (!scene.image) return;
       this.updateScene({ ...scene, isUpscaling: true });
+      const controller = new AbortController();
+      generationControllers.set(`upscale-${scene.id}`, controller);
       try {
-        const upscaledImage = await upscaleImage(scene.image);
+        const upscaledImage = await upscaleImage(
+          scene.image,
+          'x2',
+          controller.signal
+        );
         const imageUrl = await saveBase64ToGCS(
           upscaledImage.predictions[0].bytesBase64Encoded,
           'image',
@@ -687,6 +1032,8 @@ export const useStoryStore = defineStore('story', {
       } catch (error: any) {
         console.error('Failed to upscale image:', error);
         this.updateScene({ ...scene, isUpscaling: false });
+      } finally {
+        generationControllers.delete(`upscale-${scene.id}`);
       }
     },
     /**
@@ -710,18 +1057,18 @@ export const useStoryStore = defineStore('story', {
     setVisualStyle(visualStyle: string) {
       this.visualStyle = visualStyle;
     },
-      /**
-       * Sets the resolution for the story.
-       * @param {string} resolution - The resolution.
-       */
-    setResolution(resolution: '720p' | '1080p') {
+    /**
+     * Sets the resolution for the story.
+     * @param {string} resolution - The resolution.
+     */
+    setResolution(resolution: VideoResolution) {
       this.resolution = resolution;
     },
     /**
      * Sets the aspect ratio for the story.
      * @param {string} aspectRatio - The aspect ratio.
      */
-    setAspectRatio(aspectRatio: '16:9' | '9:16') {
+    setAspectRatio(aspectRatio: VideoAspectRatio) {
       this.aspectRatio = aspectRatio;
     },
     /**
@@ -732,7 +1079,9 @@ export const useStoryStore = defineStore('story', {
       this.error = null;
       this.scenes = [];
       try {
+        const configStore = useConfigStore();
         const res = await generateContent(
+          configStore.geminiTextModel,
           await formatScenes({
             adSummary: this.summary,
             writingStyle: this.writingStyle,
@@ -744,17 +1093,19 @@ export const useStoryStore = defineStore('story', {
         const { scenes } = JSON.parse(res.candidates[0].content.parts[0].text);
 
         // Map character images to the scenes
-        this.scenes = scenes.map((scene: Scene) => ({
+        // Map character IDs to full character objects
+        this.scenes = scenes.map((scene: any) => ({
           ...scene,
-          characters: scene.characters.map((character: Character) => {
-            const fullCharacter = this.characters.find(
-              (c) => c.characterId === character.characterId
-            );
-            return {
-              ...character,
-              image: fullCharacter?.image || character.image,
-            };
-          }),
+          characters: (scene.characterIds || [])
+            .map((id: string) => {
+              const fullCharacter = this.characters.find(
+                (c) => c.characterId === id
+              );
+              // If character found, use it. If not, we might skip or warn.
+              // For now, filter out undefineds later or handle them.
+              return fullCharacter;
+            })
+            .filter((c: Character | undefined): c is Character => !!c),
         }));
       } catch (error: any) {
         this.error = error;
@@ -770,11 +1121,25 @@ export const useStoryStore = defineStore('story', {
       if (!projectId) return;
 
       this.updateCharacter({ ...character, isGeneratingImage: true });
+      const controller = new AbortController();
+      generationControllers.set(
+        `character-${character.characterId}`,
+        controller
+      );
       try {
-        const prompt = `a portrait of:\n ${JSON.stringify(character)}. \nthe character should look directly into the camera and have a white backround. like in a proffesional headshot for actors`;
-        const image = await generateImage(prompt, this.aspectRatio);
+        const characterDetails = `Name: ${character.name}, Age: ${character.age}, Gender: ${character.gender}, Skin: ${character.skin}, Face: ${character.faceShape}, Eyes: ${character.eyeDescription}, Hair: ${character.hairDescription}, Clothes: ${character.clothes}, Description: ${character.description}`;
+        const prompt = `A wide-angle full-body photograph of ${character.name}, standing on a seamless pure white background. The character is visible from head to toe, with space above the head and below the feet. ${characterDetails}. The character is looking directly at the camera. High resolution, professional studio lighting, 8k, highly detailed.`;
+        const response = await generateImage(
+          prompt,
+          '16:9',
+          {
+            negativePrompt:
+              'text, watermark, signature, writing, letters, words, logo, brand, cropped, close-up, headshot, portrait, partial body, out of frame',
+          },
+          controller.signal
+        );
         const imageUrl = await saveBase64ToGCS(
-          image.predictions[0].bytesBase64Encoded,
+          response.predictions[0].bytesBase64Encoded,
           'image',
           'image/png',
           undefined,
@@ -795,6 +1160,8 @@ export const useStoryStore = defineStore('story', {
         );
         console.error('Failed to generate character image:', error);
         this.updateCharacter({ ...character, isGeneratingImage: false });
+      } finally {
+        generationControllers.delete(`character-${character.characterId}`);
       }
     },
 
@@ -811,6 +1178,23 @@ export const useStoryStore = defineStore('story', {
       } catch (error: any) {
         console.error('Failed to delete character image:', error);
         this.updateCharacter({ ...character, isDeletingImage: false });
+      }
+    },
+    /**
+     * Cancels the image generation for a character.
+     * @param {string} characterId - The ID of the character.
+     */
+    cancelCharacterGeneration(characterId: string) {
+      const controller = generationControllers.get(`character-${characterId}`);
+      if (controller) {
+        controller.abort();
+        generationControllers.delete(`character-${characterId}`);
+      }
+      const character = this.characters.find(
+        (c) => c.characterId === characterId
+      );
+      if (character) {
+        this.updateCharacter({ ...character, isGeneratingImage: false });
       }
     },
 

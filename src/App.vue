@@ -36,6 +36,14 @@ const showHeader = computed(() => {
   return route.name !== 'login';
 });
 
+const showSidebar = computed(() => {
+  return (
+    route.name !== 'login' &&
+    route.name !== 'projects' &&
+    route.name !== 'config'
+  );
+});
+
 const logout = () => {
   authStore.logout();
   if (window.google && window.google.accounts && window.google.accounts.id) {
@@ -66,10 +74,16 @@ onMounted(() => {
       </div>
       <nav class="app-nav">
         <RouterLink to="/config">Config</RouterLink>
-        <RouterLink to="/">Create</RouterLink>
-        <RouterLink to="/guidelines">Guidelines</RouterLink>
-        <RouterLink to="/scenes">Storyboard</RouterLink>
-        <RouterLink to="/video">Export</RouterLink>
+        <template v-if="projectStore.currentProjectId">
+          <RouterLink to="/">Create</RouterLink>
+          <RouterLink to="/guidelines">Guidelines</RouterLink>
+          <RouterLink to="/scenes">Storyboard</RouterLink>
+          <RouterLink to="/editor" class="nav-link-with-badge">
+            Editor
+            <span class="beta-badge">Beta</span>
+          </RouterLink>
+          <RouterLink to="/video">Export</RouterLink>
+        </template>
       </nav>
       <div class="user-actions">
         <button v-if="isAuthenticated" @click="logout" class="logout-button">
@@ -78,7 +92,7 @@ onMounted(() => {
       </div>
     </header>
     <div class="main-app-area">
-      <ProjectList v-if="showHeader" />
+      <ProjectList v-if="showSidebar" />
       <main class="main-content">
         <RouterView />
       </main>
@@ -191,5 +205,22 @@ onMounted(() => {
   padding: var(--layout-padding);
   display: flex;
   flex-direction: column;
+}
+.nav-link-with-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.beta-badge {
+  font-size: 0.7rem;
+  background-color: var(--color-accent);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 </style>

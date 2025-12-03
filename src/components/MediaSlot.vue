@@ -48,6 +48,30 @@
         />
         <label :for="'imageToVideo-' + sceneId">Image To Video</label>
       </div>
+      <div v-if="mediaType === 'video'" class="duration-selector">
+        <label>Duration:</label>
+        <select
+          :value="durationSeconds || '8'"
+          @change="
+            (e) => {
+              /*
+              Logger.debug(
+                'MediaSlot',
+                `Change duration: ${(e.target as HTMLSelectElement).value}`
+              );
+              */
+              $emit(
+                'update:durationSeconds',
+                (e.target as HTMLSelectElement).value
+              );
+            }
+          "
+        >
+          <option value="4">4s</option>
+          <option value="6">6s</option>
+          <option value="8">8s</option>
+        </select>
+      </div>
       <button @click="generate" class="generate-btn">
         Generate {{ mediaType }}
       </button>
@@ -65,39 +89,49 @@
         v-if="!displayOnly"
         @click="upload"
         class="icon mdi mdi-upload"
+        v-tooltip="'Upload'"
       ></span>
       <span
         v-if="dataUrl && !displayOnly"
         @click="download"
         class="icon mdi mdi-download"
+        v-tooltip="'Download'"
       ></span>
       <span
         v-if="mediaType === 'image' && dataUrl && !displayOnly"
         @click="upscale"
         class="icon mdi mdi-arrow-up-circle-outline"
+        v-tooltip="'Upscale'"
       ></span>
       <span
         v-if="mediaType === 'image' && dataUrl && !displayOnly"
         @click="openEditModal"
         class="icon mdi mdi-pencil"
+        v-tooltip="'Edit'"
       ></span>
       <span
         v-if="dataUrl && !displayOnly"
         @click="deleteMedia"
         class="icon mdi mdi-delete"
+        v-tooltip="'Delete'"
       ></span>
     </div>
+    <Teleport to="body">
+      <ImageEditModal
+        :show="showEditModal"
+        :image-url="dataUrl"
+        @close="closeEditModal"
+        @save="handleImageUpdate"
+      />
+    </Teleport>
   </div>
-  <Teleport to="body">
-    <ImageEditModal :show="showEditModal" :image-url="dataUrl" @close="closeEditModal" @save="handleImageUpdate" />
-  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import ImageEditModal from './ImageEditModal.vue';
 
-defineProps<{
+const props = defineProps<{
   mediaType: 'image' | 'video';
   dataUrl?: string | null;
   isGenerating?: boolean;
@@ -108,6 +142,8 @@ defineProps<{
   index?: number;
   displayOnly?: boolean;
   hideLastFrame?: boolean;
+  durationSeconds?: string;
+  imageToVideo?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -120,10 +156,20 @@ const emit = defineEmits<{
   (e: 'image-to-video-change', value: boolean): void;
   (e: 'cancel'): void;
   (e: 'update:imageUrl', imageUrl: string | null): void;
-
+  (e: 'update:durationSeconds', duration: string): void;
 }>();
 
-const imageToVideo = ref(false);
+const imageToVideo = ref(props.imageToVideo || false);
+
+watch(
+  () => props.imageToVideo,
+  (newVal) => {
+    if (newVal !== undefined) {
+      imageToVideo.value = newVal;
+    }
+  },
+  { immediate: true }
+);
 
 const showEditModal = ref(false);
 const openEditModal = () => (showEditModal.value = true);
@@ -280,5 +326,21 @@ video {
 
 .generate-btn:hover {
   background-color: var(--color-accent-hover);
+}
+
+.duration-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  margin-bottom: 10px;
+}
+
+.duration-selector select {
+  background-color: #333;
+  color: white;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 2px 5px;
 }
 </style>

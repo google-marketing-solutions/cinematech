@@ -31,7 +31,11 @@ async function getJsonSchema(
   return jsonSchema.definitions ? jsonSchema.definitions[schemaName] : {};
 }
 
-const IMAGE_STYLE_OPTIONS = [
+/**
+ * Options for describing the visual style of an image.
+ * These options help guide the generation of images with specific aesthetic qualities.
+ */
+export const IMAGE_STYLE_OPTIONS = [
   'Authentic Smartphone Photo',
   'Webcam Capture',
   'Screen Recording',
@@ -40,7 +44,12 @@ const IMAGE_STYLE_OPTIONS = [
   'Filtered Social Media Post',
   'Unedited & Raw',
 ];
-const FRAMING_OPTIONS = [
+
+/**
+ * Options for describing the framing of an image.
+ * These options help guide the generation of images with specific compositional qualities.
+ */
+export const FRAMING_OPTIONS = [
   'Selfie Angle',
   'Point-of-View (POV)',
   'Medium Shot',
@@ -49,7 +58,12 @@ const FRAMING_OPTIONS = [
   'Over-the-Shoulder',
   'Unstable / Messy Frame',
 ];
-const IMAGE_LIGHTING_OPTIONS = [
+
+/**
+ * Options for describing the lighting conditions of an image.
+ * These options help guide the generation of images with specific lighting qualities.
+ */
+export const IMAGE_LIGHTING_OPTIONS = [
   'Natural Daylight',
   'Indoor Room Light',
   'Direct Flash',
@@ -58,7 +72,12 @@ const IMAGE_LIGHTING_OPTIONS = [
   'Golden Hour',
   'Low Light / Grainy',
 ];
-const COLOR_PALETTE_OPTIONS = [
+
+/**
+ * Options for describing the color palette of an image.
+ * These options help guide the generation of images with specific color qualities.
+ */
+export const COLOR_PALETTE_OPTIONS = [
   'Natural & Unfiltered',
   'Vibrant & Saturated',
   'Faded / Vintage Filter',
@@ -66,7 +85,12 @@ const COLOR_PALETTE_OPTIONS = [
   'Slightly Desaturated',
   'High Contrast',
 ];
-const MOOD_OPTIONS = [
+
+/**
+ * Options for describing the mood of an image.
+ * These options help guide the generation of images with specific emotional qualities.
+ */
+export const MOOD_OPTIONS = [
   'Authentic & Relatable',
   'Candid & Spontaneous',
   'Joyful & Energetic',
@@ -75,7 +99,12 @@ const MOOD_OPTIONS = [
   'Nostalgic',
   'Raw & Unfiltered',
 ];
-const VIDEO_STYLE_OPTIONS = [
+
+/**
+ * Options for describing the style of a video.
+ * These options help guide the generation of videos with specific aesthetic qualities.
+ */
+export const VIDEO_STYLE_OPTIONS = [
   'Vlog Style',
   'Testimonial',
   'Unboxing',
@@ -85,7 +114,12 @@ const VIDEO_STYLE_OPTIONS = [
   'Reaction Video',
   'Day-in-the-Life',
 ];
-const CAMERA_TYPE_OPTIONS = [
+
+/**
+ * Options for describing the type of camera used to capture a video.
+ * These options help guide the generation of videos with specific camera qualities.
+ */
+export const CAMERA_TYPE_OPTIONS = [
   'Smartphone',
   'Webcam',
   'GoPro / Action Cam',
@@ -93,7 +127,12 @@ const CAMERA_TYPE_OPTIONS = [
   'Consumer Camcorder',
   'Drone (Consumer)',
 ];
-const CAMERA_MOVEMENT_OPTIONS = [
+
+/**
+ * Options for describing the movement of a camera used to capture a video.
+ * These options help guide the generation of videos with specific camera movement qualities.
+ */
+export const CAMERA_MOVEMENT_OPTIONS = [
   'Handheld',
   'Shaky',
   'Static / Tripod',
@@ -102,7 +141,12 @@ const CAMERA_MOVEMENT_OPTIONS = [
   'In-camera Zoom',
   'Selfie Stick Movement',
 ];
-const VIDEO_LIGHTING_OPTIONS = [
+
+/**
+ * Options for describing the lighting conditions of a video.
+ * These options help guide the generation of videos with specific lighting qualities.
+ */
+export const VIDEO_LIGHTING_OPTIONS = [
   'Natural Light (Indoors/Outdoors)',
   'Ring Light',
   'Harsh Midday Sun',
@@ -112,57 +156,26 @@ const VIDEO_LIGHTING_OPTIONS = [
   'Car Interior Lighting',
 ];
 
+/**
+ * Zod schema for a character.
+ * This schema is used to validate and generate character data for the prompt.
+ */
 export const CharacterSchema = z.object({
-  name: z.string().describe("The character's name."),
-  characterId: z
-    .string()
-    .optional()
-    .describe(
-      'A unique ID (like a name or UUID) to reference this character. Use as a simple string.'
-    ),
-  age: z
-    .string()
-    .describe(
-      "Describe the character's age in text, e.g., '28 years old', 'late 40s', 'teenager'."
-    ),
-  gender: z.string().describe('Is it a male or a female'),
-  skin: z
-    .string()
-    .describe(
-      "Describe the skin tone and complexion in one field. e.g., 'Olive skin with light freckles across the nose', 'Pale porcelain, weathered and rugged'."
-    ),
-  // faceShape: z.string().describe("The shape of the face. e.g., 'Oval', 'Round', 'Square', 'Heart-shaped'."),
-  eyeDescription: z
-    .string()
-    .describe(
-      "Describe eye color and shape together. e.g., 'Almond-shaped, deep emerald green', 'Round, icy blue with heavy eyelids'."
-    ),
+  name: z.string().describe('Character name'),
+  characterId: z.string().optional().describe('Unique character ID'),
+  age: z.string().describe('Character age'),
+  gender: z.string().describe('Gender'),
+  skin: z.string().describe('Skin tone and complexion'),
+  // faceShape: z.string().describe("Face shape"),
+  eyeDescription: z.string().describe('Eye color and shape'),
   hairDescription: z
     .string()
-    .describe(
-      "Combine all hair attributes: color, length, style, and texture. e.g., 'Shoulder-length, wavy, fiery copper red hair', 'A sharp, jet black bob cut'."
-    ),
-  bodyDescription: z
-    .string()
-    .describe(
-      "Describe the body build, height, and posture together. e.g., 'Tall and slender with an upright, confident posture', 'Petite, athletic, and always in motion'."
-    ),
+    .describe('Hair color, length, style, and texture'),
+  bodyDescription: z.string().describe('Body build, height, and posture'),
 
-  clothes: z
-    .string()
-    .describe(
-      "Hyper-detailed description of the character's specific outfit for the current scene."
-    ),
-  description: z
-    .string()
-    .describe(
-      "A high-level summary of the character's overall vibe and personality."
-    ),
-  voice: z
-    .string()
-    .describe(
-      "A description of the character's voice (not used for image generation)."
-    ),
+  clothes: z.string().describe('Detailed outfit description'),
+  description: z.string().describe('Overall personality summary'),
+  voice: z.string().describe('Voice description'),
 });
 
 /**
@@ -189,77 +202,53 @@ export const SceneSchema = z.object({
     ),
   script: z
     .string()
-    .describe('The script for this scene, including dialogue and actions.'),
-  characters: z
-    .array(CharacterSchema)
-    .describe('a list of characters in the scene'),
+    .describe(
+      'The exact spoken dialogue for this scene, formatted as "Character: Dialogue". If there is no dialogue, leave empty.'
+    ),
+  characterIds: z
+    .array(z.string())
+    .describe('List of character IDs present in this scene'),
   background: z
     .string()
     .describe(
       'a hyper detailed description of the background of the scene. where is it taking place'
     ),
-  audio: z
-    .string()
-    .describe('THe audio sounds that should play in the background'),
-  imageDirectives: z.object({
-    description: z
-      .string()
-      .describe(
-        'A detailed description of the first frame of the scene. make it clear no subtitles should show in the video'
-      ),
-    style: z
-      .string()
-      .describe(`Artistic style. Suggested: ${IMAGE_STYLE_OPTIONS.join(', ')}`),
-    framing: z
-      .string()
-      .describe(`Camera shot type. Suggested: ${FRAMING_OPTIONS.join(', ')}`),
-    lighting: z
-      .string()
-      .describe(
-        `Lighting style. Suggested: ${IMAGE_LIGHTING_OPTIONS.join(', ')}`
-      ),
-    color: z
-      .string()
-      .describe(
-        `Color palette. Suggested: ${COLOR_PALETTE_OPTIONS.join(', ')}`
-      ),
-    mood: z
-      .string()
-      .describe(`Emotional tone. Suggested: ${MOOD_OPTIONS.join(', ')}`),
+
+  // New Structured Fields for Ideal Prompting
+  subject: z.string().describe('Main subject description'),
+  action: z.string().describe('Action in the scene'),
+  environment: z.string().describe('Setting/background description'),
+
+  camera: z.object({
+    angle: z.string().describe('Camera angle'),
+    movement: z.string().describe('Camera movement'),
+    type: z.string().describe('Camera type'),
+    lens: z.string().optional().describe('Lens type'),
   }),
 
-  videoDirectives: z.object({
-    style: z
-      .string()
-      .describe(`Video style. Suggested: ${VIDEO_STYLE_OPTIONS.join(', ')}`),
-    camera: z
-      .string()
-      .describe(`Camera type. Suggested: ${CAMERA_TYPE_OPTIONS.join(', ')}`),
-    movement: z
-      .string()
-      .describe(
-        `Camera movement. Suggested: ${CAMERA_MOVEMENT_OPTIONS.join(', ')}`
-      ),
-    lighting: z
-      .string()
-      .describe(
-        `Lighting style. Suggested: ${VIDEO_LIGHTING_OPTIONS.join(', ')}`
-      ),
-    transition: z
+  audio: z.object({
+    dialogue: z
       .string()
       .optional()
       .describe(
-        'How the scene is moving from the previous one to the current one'
+        'The exact spoken dialogue for this scene, formatted as "Character Name: Dialogue". Do not include actions or descriptions.'
       ),
+    ambient: z.string().optional().describe('Background sounds'),
+    music: z.string().optional().describe('Musical mood'),
+    soundEffects: z.string().optional().describe('Sound effects'),
   }),
-  generatedImage: z
-    .string()
-    .optional()
-    .describe('URL/Base64 of the generated still image.'),
-  generatedVideo: z
-    .string()
-    .optional()
-    .describe('URL of the generated video clip.'),
+
+  style: z.object({
+    artStyle: z.string().describe('Art style'),
+    lighting: z.string().describe('Lighting conditions'),
+    colorPalette: z.string().describe('Color palette'),
+    mood: z.string().describe('Emotional atmosphere'),
+  }),
+
+  negativePrompt: z.string().optional().describe('Negative prompt'),
+
+  generatedImage: z.string().optional().describe('Generated image URL'),
+  generatedVideo: z.string().optional().describe('Generated video URL'),
 });
 
 /**
@@ -297,16 +286,20 @@ export const GuidelinesSchema = z.object({
   prompt: z
     .string()
     .describe('The initial, high-level prompt provided by the user.'),
-  adSummary: z.string().describe("A short summary of the ad's plot."),
+  adSummary: z
+    .string()
+    .describe(
+      "Project Overview: A concise synopsis of the video's concept and goal."
+    ),
   writingStyle: z
     .string()
     .describe(
-      "Description of the script's writing style, e.g., 'Witty and fast-paced like a Taika Waititi film.'"
+      "Tone of Voice: The personality and rhythm of the script (e.g., 'Witty and fast-paced', 'Somber and reflective')."
     ),
   visualStyle: z
     .string()
     .describe(
-      "Description of the visual style, e.g., 'Cinematic and moody like a Denis Villeneuve film.'"
+      "Art Direction: The visual language and cinematic approach (e.g., 'Cinematic and moody', 'Handheld documentary style')."
     ),
   characters: z
     .array(CharacterSchema)

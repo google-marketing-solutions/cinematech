@@ -24,7 +24,7 @@
           class="btn-create-video"
           :disabled="storyStore.loading"
         >
-          {{ storyStore.loading ? 'Creating...' : 'Create Video' }}
+          {{ storyStore.loading ? 'Creating...' : 'Connect Scenes' }}
         </button>
       </div>
       <div v-if="storyStore.loading" class="loading-container">
@@ -36,6 +36,13 @@
           :key="scene.id"
           :scene="scene"
           :index="index"
+          :type="scene.type || 'default'"
+          draggable="true"
+          :class="{ 'is-dragging': index === draggedIndex }"
+          @dragstart="onDragStart(index, $event)"
+          @dragover="onDragOver($event)"
+          @drop="onDrop(index, $event)"
+          @dragend="onDragEnd"
           @edit="storyStore.showEditModal"
           @delete="storyStore.deleteScene"
           @generate-video="storyStore.generateVideoForScene"
@@ -55,12 +62,31 @@
               mediaType,
             }: {
               sceneId: number;
-              mediaType: 'image' | 'video';
+              mediaType: 'image' | 'video' | 'lastFrame';
             }) => storyStore.deleteSceneMedia(sceneId, mediaType)
           "
           @cancel-video-generation="storyStore.cancelVideoGeneration"
+          @cancel-image-generation="storyStore.cancelImageGeneration"
           @upscale-image="storyStore.upscaleImageForScene"
           @update-scene-image="handleUpdateSceneImage"
+          @update-scene-last-frame="handleUpdateSceneLastFrame"
+          @update-scene-duration="
+            ({ scene, duration }: { scene: Scene; duration: string }) =>
+              storyStore.updateSceneDuration(scene, duration)
+          "
+          @update-scene-type="
+            ({
+              scene,
+              type,
+            }: {
+              scene: Scene;
+              type: 'default' | 'first-to-last';
+            }) => storyStore.updateSceneType(scene, type)
+          "
+          @upload-last-frame="
+            ({ scene, file }: { scene: Scene; file: File }) =>
+              storyStore.uploadMediaForScene(scene, file, 'lastFrame')
+          "
         />
         <button @click="storyStore.addScene" class="add-scene-btn">+</button>
       </div>
@@ -70,6 +96,27 @@
       :scene="storyStore.currentScene!"
       @close="storyStore.hideEditModal"
       @save="handleSaveScene"
+      @generate-video="storyStore.generateVideoForScene"
+      @generate-image="storyStore.generateImageForScene"
+      @upload-image="
+        ({ scene, file }: { scene: Scene; file: File }) =>
+          storyStore.uploadMediaForScene(scene, file, 'image')
+      "
+      @upload-video="
+        ({ scene, file }: { scene: Scene; file: File }) =>
+          storyStore.uploadMediaForScene(scene, file, 'video')
+      "
+      @delete-media="
+        ({
+          sceneId,
+          mediaType,
+        }: {
+          sceneId: number;
+          mediaType: 'image' | 'video' | 'lastFrame';
+        }) => storyStore.deleteSceneMedia(sceneId, mediaType)
+      "
+      @cancel-video-generation="storyStore.cancelVideoGeneration"
+      @cancel-image-generation="storyStore.cancelImageGeneration"
     />
   </div>
 </template>
@@ -77,6 +124,7 @@
 <script setup lang="ts">
 import { useStoryStore } from '@/stores/story.ts';
 import { useRouter } from 'vue-router';
+import { ref } from 'vue';
 import SceneCard from '@/components/SceneCard.vue';
 import EditSceneModal from '@/components/EditSceneModal.vue';
 import type { Scene } from '@/types';
@@ -89,8 +137,24 @@ const handleSaveScene = (updatedScene: Scene) => {
   storyStore.hideEditModal();
 };
 
-const handleUpdateSceneImage = ({ scene, imageUrl }: { scene: Scene; imageUrl: string }) => {
+const handleUpdateSceneImage = ({
+  scene,
+  imageUrl,
+}: {
+  scene: Scene;
+  imageUrl: string;
+}) => {
   storyStore.updateSceneImage(scene, imageUrl);
+};
+
+const handleUpdateSceneLastFrame = ({
+  scene,
+  imageUrl,
+}: {
+  scene: Scene;
+  imageUrl: string;
+}) => {
+  storyStore.updateSceneLastFrame(scene, imageUrl);
 };
 
 const handleCreateVideo = async () => {
@@ -99,16 +163,50 @@ const handleCreateVideo = async () => {
     router.push('/video');
   }
 };
+
+const draggedIndex = ref<number | null>(null);
+
+const onDragStart = (index: number, event: DragEvent) => {
+  draggedIndex.value = index;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', index.toString());
+    // Optional: Set drag image or style
+  }
+};
+
+const onDragOver = (event: DragEvent) => {
+  event.preventDefault(); // Necessary to allow dropping
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+};
+
+const onDrop = (index: number, event: DragEvent) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    const fromIndex = Number(event.dataTransfer.getData('text/plain'));
+    if (!isNaN(fromIndex) && fromIndex !== index) {
+      storyStore.reorderScenes(fromIndex, index);
+    }
+  }
+  draggedIndex.value = null;
+};
+
+const onDragEnd = () => {
+  draggedIndex.value = null;
+};
 </script>
 
 <style scoped>
+.is-dragging {
+  opacity: 0.5;
+  border: 2px dashed var(--color-accent);
+}
+
 .scenes-page {
   min-height: 100vh;
-  background: linear-gradient(
-    to right,
-    var(--color-primary),
-    var(--color-secondary)
-  );
+  background: var(--color-background);
   font-family: 'Montserrat', sans-serif;
   color: var(--vt-c-white);
   padding-top: 80px; /* Space for the header */

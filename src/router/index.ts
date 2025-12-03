@@ -22,6 +22,7 @@ import {
 } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useConfigStore } from '@/stores/config';
+import { useProjectStore } from '@/stores/project';
 import PromptView from '../views/PromptView.vue';
 import GuidelinesView from '../views/GuidelinesView.vue';
 import ScenesView from '../views/ScenesView.vue';
@@ -66,6 +67,21 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/editor',
+      name: 'editor',
+      // route level code-splitting
+      // this generates a separate chunk (Editor.[hash].js) for this route
+      // which is lazy-loaded when the route is visited.
+      component: () => import('../views/EditorView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/projects',
+      name: 'projects',
+      component: () => import('../views/ProjectsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/config',
       name: 'config',
       component: ConfigView,
@@ -82,19 +98,33 @@ router.beforeEach(
   ) => {
     const authStore = useAuthStore();
     const configStore = useConfigStore();
+    const projectStore = useProjectStore(); // We need to check if a project is selected
     const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
 
     if (requiresAuth && !authStore.isAuthenticated) {
       next({ name: 'login' });
     } else if (to.name === 'login' && authStore.isAuthenticated) {
       next({ name: 'prompt' });
-    } else if (
-      requiresAuth &&
-      authStore.isAuthenticated &&
-      !configStore.gcsBucketName &&
-      to.name !== 'config'
-    ) {
-      next({ name: 'config' });
+    } else if (requiresAuth && authStore.isAuthenticated) {
+      // 1. Check Config
+      if (!configStore.gcsBucketName && to.name !== 'config') {
+        next({ name: 'config' });
+        return;
+      }
+
+      // 2. Check Project (only if config is present)
+      if (
+        configStore.gcsBucketName &&
+        !projectStore.currentProjectId &&
+        !localStorage.getItem('currentProjectId') &&
+        to.name !== 'config' &&
+        to.name !== 'projects'
+      ) {
+        next({ name: 'projects' });
+        return;
+      }
+
+      next();
     } else {
       next();
     }

@@ -19,6 +19,7 @@ import {
   listProjects,
   createProject as createGcsProject,
   deleteProject as deleteGcsProject,
+  copyProject as copyGcsProject,
 } from '@/services/gcp/gcs.ts';
 import { useStoryStore } from './story.ts';
 
@@ -76,12 +77,21 @@ export const useProjectStore = defineStore('project', {
             await this.setCurrentProject(this.projects[0]);
           }
         }
-      } catch (error: any) {
-        this.error = error;
+      } catch (error: unknown) {
+        this.error = error as Error;
         console.error('Error fetching projects:', error);
       } finally {
         this.loading = false;
       }
+    },
+    /**
+     * Clears the current project.
+     */
+    clearCurrentProject() {
+      this.currentProjectId = null;
+      localStorage.removeItem('currentProjectId');
+      const storyStore = useStoryStore();
+      storyStore.$reset(); // Optionally reset story store as well
     },
     /**
      * Sets the current project and loads its data.
@@ -96,9 +106,9 @@ export const useProjectStore = defineStore('project', {
       const storyStore = useStoryStore();
       try {
         await storyStore.loadProject(projectId);
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.error = new Error(
-          `Failed to load project ${projectId}: ${error.message}`
+          `Failed to load project ${projectId}: ${(error as Error).message}`
         );
         console.error(this.error);
       } finally {
@@ -116,8 +126,8 @@ export const useProjectStore = defineStore('project', {
         await createGcsProject(projectName);
         await this.fetchProjects();
         await this.setCurrentProject(projectName);
-      } catch (error: any) {
-        this.error = error;
+      } catch (error: unknown) {
+        this.error = error as Error;
         console.error('Error creating project:', error);
       } finally {
         this.loading = false;
@@ -133,11 +143,33 @@ export const useProjectStore = defineStore('project', {
       try {
         await deleteGcsProject(projectId);
         await this.fetchProjects();
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.error = new Error(
-          `Failed to delete project ${projectId}: ${error.message}`
+          `Failed to delete project ${projectId}: ${(error as Error).message}`
         );
         console.error(this.error);
+      } finally {
+        this.loading = false;
+      }
+    },
+    /**
+     * Copies a project.
+     * @param {string} sourceProjectName - The name of the project to copy.
+     * @param {string} destinationProjectName - The name of the new project.
+     */
+    async copyProject(
+      sourceProjectName: string,
+      destinationProjectName: string
+    ) {
+      this.loading = true;
+      this.error = null;
+      try {
+        await copyGcsProject(sourceProjectName, destinationProjectName);
+        await this.fetchProjects();
+        await this.setCurrentProject(destinationProjectName);
+      } catch (error: unknown) {
+        this.error = error as Error;
+        console.error('Error copying project:', error);
       } finally {
         this.loading = false;
       }

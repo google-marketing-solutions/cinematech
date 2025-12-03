@@ -26,6 +26,9 @@
         @generate="$emit('generate')"
         @delete="$emit('delete-image')"
         @upload="$emit('upload')"
+        @download="handleDownload"
+        @update:image-url="handleImageUpdate"
+        @cancel="$emit('cancel-generation')"
         hide-last-frame
       />
     </div>
@@ -50,7 +53,20 @@ const props = defineProps({
   },
 });
 
-const { mediaDataUrl, loadMedia } = useMedia();
+const { mediaDataUrl, loadMedia, downloadMedia } = useMedia();
+
+const handleDownload = () => {
+  if (mediaDataUrl.value) {
+    downloadMedia(mediaDataUrl.value, `${props.character.name}.png`);
+  }
+};
+
+const handleImageUpdate = (newImageUrl: string | null) => {
+  if (newImageUrl) {
+    mediaDataUrl.value = newImageUrl;
+    emit('update-image', newImageUrl);
+  }
+};
 
 watch(
   () => props.character.image,
@@ -60,11 +76,13 @@ watch(
   { immediate: true }
 );
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'edit'): void;
   (e: 'generate'): void;
   (e: 'delete-image'): void;
   (e: 'upload'): void;
+  (e: 'update-image', imageUrl: string): void;
+  (e: 'cancel-generation'): void;
 }>();
 </script>
 

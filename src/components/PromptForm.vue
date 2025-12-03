@@ -48,7 +48,7 @@ const handleCreate = () => {
 <style scoped>
 .form-container {
   width: 100%;
-  max-width: 700px;
+  max-width: 900px;
   margin: 0 auto;
   animation: fadeIn 0.8s ease-out;
   text-align: center;
@@ -56,18 +56,19 @@ const handleCreate = () => {
 
 textarea {
   width: 100%;
-  height: 120px;
+  height: 300px;
   padding: var(--spacing-md) var(--spacing-lg);
   font-family: var(--font-primary);
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  line-height: 1.6;
   color: var(--color-text-primary);
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius-lg);
-  margin-bottom: var(--spacing-lg);
-  resize: none;
-  transition: var(--transition-smooth);
-  box-shadow: 0 0 0 3px transparent;
+  margin-bottom: var(--spacing-xl);
+  resize: vertical;
+  transition: all 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 textarea::placeholder {
@@ -77,21 +78,23 @@ textarea::placeholder {
 textarea:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 15px 5px rgba(var(--color-accent), 0.2);
-  background-color: #2a2a2a;
+  background-color: var(--color-background);
+  box-shadow: 0 0 0 2px rgba(228, 0, 124, 0.2);
 }
 
 button {
-  padding: var(--spacing-md) var(--spacing-xl);
-  font-size: 1.1rem;
+  padding: var(--spacing-md) 4rem;
+  font-size: 1.2rem;
   font-weight: 600;
   color: #ffffff;
   background-color: var(--color-accent);
   border: none;
-  border-radius: var(--border-radius-md);
+  border-radius: 50px;
   cursor: pointer;
-  transition: var(--transition-smooth);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--shadow-md);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 button:hover {
@@ -100,19 +103,27 @@ button:hover {
   box-shadow: var(--shadow-lg);
 }
 
+button:active {
+  transform: translateY(1px);
+}
+
 button:disabled {
-  background-color: var(--color-accent-disabled);
+  background: var(--color-surface-variant);
+  color: var(--color-text-disabled);
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .spinner {
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 3px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  border-top: 2px solid #fff;
-  width: 16px;
-  height: 16px;
+  border-top: 3px solid #fff;
+  width: 24px;
+  height: 24px;
   animation: spin 1s linear infinite;
   display: inline-block;
+  vertical-align: middle;
 }
 
 @keyframes spin {

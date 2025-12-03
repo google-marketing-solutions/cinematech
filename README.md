@@ -14,7 +14,7 @@ You need to have [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/
 
 1.  Clone the repository to your local machine:
     ```bash
-    git clone https://github.com/your-username/cinematech.git
+    git clone https://github.com/google-marketing-solutions/cinematech.git
     ```
 2.  Navigate to the project directory:
     ```bash

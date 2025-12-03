@@ -40,6 +40,8 @@
       @generate-character="generateCharacterImage"
       @delete-character-image="deleteCharacterImage"
       @upload-character-image="uploadCharacterImage"
+      @update-character-image="updateCharacterImage"
+      @cancel-character-generation="cancelCharacterGeneration"
     />
 
     <EditCharacterModal
@@ -60,6 +62,7 @@ import GuidelinesForm from '@/components/GuidelinesForm.vue';
 import EditCharacterModal from '@/components/EditCharacterModal.vue';
 import { useRouter } from 'vue-router';
 import type { Character } from '@/types';
+import { VideoResolution, VideoAspectRatio } from '@/types';
 
 const storyStore = useStoryStore();
 const router = useRouter();
@@ -87,11 +90,11 @@ const updateVisualStyle = (value: string) => {
   storyStore.setVisualStyle(value);
 };
 
-const updateResolution = (value: '720p' | '1080p') => {
+const updateResolution = (value: VideoResolution) => {
   storyStore.setResolution(value);
 };
 
-const updateAspectRatio = (value: '16:9' | '9:16') => {
+const updateAspectRatio = (value: VideoAspectRatio) => {
   storyStore.setAspectRatio(value);
 };
 
@@ -126,8 +129,22 @@ const deleteCharacterImage = (character: Character) => {
   storyStore.deleteCharacterImage(character);
 };
 
+const cancelCharacterGeneration = (character: Character) => {
+  storyStore.cancelCharacterGeneration(character.characterId);
+};
+
 const uploadCharacterImage = (character: Character) => {
   storyStore.uploadCharacterImage(character);
+};
+
+const updateCharacterImage = ({
+  character,
+  imageUrl,
+}: {
+  character: Character;
+  imageUrl: string;
+}) => {
+  storyStore.updateCharacterImage(character, imageUrl);
 };
 
 const closeModal = () => {
@@ -142,11 +159,7 @@ const closeModal = () => {
   flex-direction: column;
   align-items: center;
   height: 100vh;
-  background: linear-gradient(
-    to right,
-    var(--color-primary),
-    var(--color-secondary)
-  );
+  background: var(--color-background);
   font-family: 'Montserrat', sans-serif;
   color: var(--vt-c-white);
   text-align: center;

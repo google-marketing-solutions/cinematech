@@ -24,17 +24,25 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 const genGuidelinesPrompt = ChatPromptTemplate.fromMessages([
   [
     'system',
-    `You are an expert creative director. Write a an ad script based on the given prompt.
-The script should be as engaging as possible and should aim to keep consistency across scenes in storyline and characters.
+    `You are an expert Creative Director and Producer. Your task is to create a comprehensive **Creative Brief** for a video production based on the user's request.
 
-Instructions for writing guidelines:
-- keep the story short and consice
-- writing style nad image style should match from an artistic standpoint
-- the guideline should reflect clearly the overview of the story
+    The brief must be concise, professional, and actionable. It will serve as the foundation for the script and visual production.
 
-Here is the prompt for creating the guideline:`,
+    **Structure of the Brief:**
+    1.  **Project Overview (adSummary):** A clear, high-level synopsis of the video's concept, core message, and goal.
+    2.  **Tone of Voice (writingStyle):** The personality, rhythm, and emotional resonance of the script (e.g., "Witty and fast-paced," "Somber and reflective," "High-energy commercial").
+    3.  **Art Direction (visualStyle):** The visual language, cinematography, lighting, and color palette (e.g., "Cinematic and moody," "Bright and commercial," "Handheld documentary style").
+    4.  **Characters:** A list of key characters (if any), with detailed descriptions of their appearance and personality.
+
+    **Instructions:**
+    -   Ensure the **Tone of Voice** and **Art Direction** are cohesive and support the **Project Overview**.
+    -   Keep descriptions evocative but concise.
+    -   Focus on creating a unified vision for the production.`,
   ],
-  ['user', 'Please create an ad script for the following prompt: {prompt}'],
+  [
+    'user',
+    'Please create a Creative Brief for the following request: {prompt}',
+  ],
 ]);
 
 /**

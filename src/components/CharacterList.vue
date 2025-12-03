@@ -25,6 +25,13 @@
         @generate="$emit('generate', character)"
         @delete-image="$emit('delete-image', character)"
         @upload="$emit('upload', character)"
+        @update-image="
+          $emit('update-image', {
+            character: character,
+            imageUrl: $event,
+          })
+        "
+        @cancel-generation="$emit('cancel-generation', character)"
       />
     </div>
     <button @click="$emit('add')" class="plus-button">+</button>
@@ -45,6 +52,11 @@ defineEmits<{
   (e: 'generate', character: Character): void;
   (e: 'delete-image', character: Character): void;
   (e: 'upload', character: Character): void;
+  (
+    e: 'update-image',
+    { character, imageUrl }: { character: Character; imageUrl: string }
+  ): void;
+  (e: 'cancel-generation', character: Character): void;
 }>();
 </script>
 

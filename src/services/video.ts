@@ -49,3 +49,27 @@ export function getLastFrame(videoBase64: string): Promise<string> {
     };
   });
 }
+
+/**
+ * Gets the duration of a video file in seconds.
+ * @param {File} file - The video file.
+ * @return {Promise<number>} A promise that resolves with the duration in seconds.
+ */
+export function getVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+
+    video.onloadedmetadata = () => {
+      window.URL.revokeObjectURL(video.src);
+      resolve(video.duration);
+    };
+
+    video.onerror = () => {
+      window.URL.revokeObjectURL(video.src);
+      reject(new Error('Failed to load video metadata'));
+    };
+
+    video.src = URL.createObjectURL(file);
+  });
+}

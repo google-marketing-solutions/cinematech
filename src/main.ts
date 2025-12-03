@@ -14,12 +14,14 @@
  limitations under the License.
 */
 import './assets/main.css';
+import './assets/tooltip.css';
 import '@mdi/font/css/materialdesignicons.css';
 
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router/index.ts';
+import { vTooltip } from './directives/tooltip';
 
 /**
  * The entry point of the application.
@@ -28,5 +30,6 @@ const app = createApp(App);
 
 app.use(createPinia());
 app.use(router);
+app.directive('tooltip', vTooltip);
 
 app.mount('#app');

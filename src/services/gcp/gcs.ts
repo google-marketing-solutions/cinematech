@@ -16,6 +16,7 @@
 
 import { getAccessToken } from '../auth.ts';
 import { useConfigStore } from '@/stores/config.ts';
+import type { FileSystemNode } from '@/types';
 
 const GCS_UPLOAD_API_BASE_URL =
   'https://storage.googleapis.com/upload/storage/v1/b';
@@ -29,6 +30,17 @@ const GCS_STORAGE_API_BASE_URL = 'https://storage.googleapis.com/storage/v1/b';
 interface GcsUriParts {
   bucket: string;
   object: string;
+}
+
+interface GcsItem {
+  name: string;
+  bucket: string;
+  contentType: string;
+  size: string;
+  updated: string;
+  metadata?: {
+    duration?: string;
+  };
 }
 
 /**
@@ -51,6 +63,40 @@ function _parseGcsUri(gcsUri: string): GcsUriParts {
     );
   }
   return { bucket, object };
+}
+
+/**
+ * Recursively updates GCS URIs in a JSON object.
+ * @param {unknown} obj - The object to traverse.
+ * @param {string} sourceProjectName - The source project name to replace.
+ * @param {string} destinationProjectName - The destination project name.
+ * @return {unknown} The object with updated GCS URIs.
+ */
+function _updateGcsUris(
+  obj: unknown,
+  sourceProjectName: string,
+  destinationProjectName: string
+): unknown {
+  if (typeof obj === 'string' && obj.startsWith('gs://')) {
+    return obj.replace(`/${sourceProjectName}/`, `/${destinationProjectName}/`);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) =>
+      _updateGcsUris(item, sourceProjectName, destinationProjectName)
+    );
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = _updateGcsUris(
+        value,
+        sourceProjectName,
+        destinationProjectName
+      );
+    }
+    return result;
+  }
+  return obj;
 }
 
 /**
@@ -127,9 +173,15 @@ function _getBucketName(bucketName?: string): string {
  * @param {string} [bucketName] - The optional name of the bucket to list projects from.
  * @return {Promise<string[]>} A promise that resolves with an array of project names.
  */
+/**
+ * Lists all projects in a GCS bucket.
+ * Projects are identified by the prefixes of the objects in the bucket.
+ * Only prefixes containing a valid `project.json` file are returned.
+ * @param {string} [bucketName] - The optional name of the bucket to list projects from.
+ * @return {Promise<string[]>} A promise that resolves with an array of project names.
+ */
 export async function listProjects(bucketName?: string): Promise<string[]> {
   const resolvedBucketName = _getBucketName(bucketName);
-  console.log(resolvedBucketName);
   const path = `${resolvedBucketName}/o`;
   const params = { delimiter: '/' };
 
@@ -144,9 +196,33 @@ export async function listProjects(bucketName?: string): Promise<string[]> {
         }
       );
       const result = await response.json();
-      console.log(result);
       if (result.prefixes) {
-        return result.prefixes.map((p: string) => p.slice(0, -1));
+        const potentialProjects = result.prefixes.map((p: string) =>
+          p.slice(0, -1)
+        );
+        const validProjects: string[] = [];
+
+        // Check each prefix for a valid project.json
+        await Promise.all(
+          potentialProjects.map(async (projectName: string) => {
+            try {
+              const gcsUri = `gs://${resolvedBucketName}/${projectName}/project.json`;
+              const projectData = await downloadFileFromGCS(gcsUri, 'json');
+              // Minimal validation: check for version or scenes array
+              if (
+                projectData &&
+                (projectData.version !== undefined ||
+                  Array.isArray(projectData.scenes))
+              ) {
+                validProjects.push(projectName);
+              }
+            } catch (error) {
+              // Ignore if project.json doesn't exist or is invalid
+            }
+          })
+        );
+
+        return validProjects.sort();
       }
     }
     return [];
@@ -187,7 +263,7 @@ export async function deleteProject(
       return;
     }
 
-    const deletePromises = items.map((item: any) => {
+    const deletePromises = items.map((item: GcsItem) => {
       const gcsUri = `gs://${item.bucket}/${item.name}`;
       return deleteFileFromGCS(gcsUri);
     });
@@ -215,15 +291,110 @@ export async function createProject(
   const path = `${resolvedBucketName}/o`;
   const params = { uploadType: 'media', name: fileName };
 
+  // Initial project structure
+  const initialProjectData = {
+    version: 1, // Hardcoded for now, or import CURRENT_SCHEMA_VERSION if available
+    scenes: [],
+    characters: [],
+    prompt: '',
+    summary: '',
+  };
+
   try {
     await _gcsApiRequest(GCS_UPLOAD_API_BASE_URL, path, params, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify(initialProjectData),
     });
     return projectName;
   } catch (error) {
     console.error(`Error creating project "${projectName}":`, error);
+    throw error;
+  }
+}
+
+/**
+ * Copies a project in GCS by duplicating its files under a new project name.
+ * @param {string} sourceProjectName - The name of the project to copy.
+ * @param {string} destinationProjectName - The name of the new project.
+ * @param {string} [bucketName] - The optional name of the bucket.
+ * @return {Promise<void>} A promise that resolves when the project is copied.
+ */
+export async function copyProject(
+  sourceProjectName: string,
+  destinationProjectName: string,
+  bucketName?: string
+): Promise<void> {
+  const resolvedBucketName = _getBucketName(bucketName);
+  const sourcePath = `${resolvedBucketName}/o`;
+  const sourceParams = { prefix: `${sourceProjectName}/` };
+
+  try {
+    const response = await _gcsApiRequest(
+      GCS_STORAGE_API_BASE_URL,
+      sourcePath,
+      sourceParams,
+      { method: 'GET' }
+    );
+    const { items } = await response.json();
+
+    if (!items || items.length === 0) {
+      return;
+    }
+
+    const projectJsonItem = items.find(
+      (item: GcsItem) => item.name === `${sourceProjectName}/project.json`
+    );
+
+    if (projectJsonItem) {
+      const projectJson = await downloadFileFromGCS(
+        `gs://${resolvedBucketName}/${projectJsonItem.name}`,
+        'json'
+      );
+      const updatedProjectJson = _updateGcsUris(
+        projectJson,
+        sourceProjectName,
+        destinationProjectName
+      );
+      const blob = new Blob([JSON.stringify(updatedProjectJson, null, 2)], {
+        type: 'application/json',
+      });
+      const file = new File([blob], 'project.json', {
+        type: 'application/json',
+      });
+      await uploadFileToGCS(
+        file,
+        'project.json',
+        resolvedBucketName,
+        destinationProjectName
+      );
+    }
+
+    const otherFiles = items.filter(
+      (item: GcsItem) => item.name !== `${sourceProjectName}/project.json`
+    );
+
+    const copyPromises = otherFiles.map((item: GcsItem) => {
+      const destinationObjectName = item.name.replace(
+        sourceProjectName,
+        destinationProjectName
+      );
+      const copyPath = `${item.bucket}/o/${encodeURIComponent(
+        item.name
+      )}/copyTo/b/${item.bucket}/o/${encodeURIComponent(
+        destinationObjectName
+      )}`;
+      return _gcsApiRequest(
+        GCS_STORAGE_API_BASE_URL,
+        copyPath,
+        {},
+        { method: 'POST' }
+      );
+    });
+
+    await Promise.all(copyPromises);
+  } catch (error) {
+    console.error(`Error copying project "${sourceProjectName}":`, error);
     throw error;
   }
 }
@@ -240,7 +411,8 @@ export async function uploadFileToGCS(
   file: File,
   fileName: string,
   bucketName?: string,
-  prefix = ''
+  prefix = '',
+  metadata?: Record<string, string>
 ): Promise<string> {
   const resolvedBucketName = _getBucketName(bucketName);
   const objectName = prefix ? `${prefix}/${fileName}` : fileName;
@@ -259,6 +431,22 @@ export async function uploadFileToGCS(
       }
     );
     const result = await response.json();
+
+    // If metadata is provided, update it
+    if (metadata) {
+      const updatePath = `${resolvedBucketName}/o/${encodeURIComponent(result.name)}`;
+      await _gcsApiRequest(
+        GCS_STORAGE_API_BASE_URL,
+        updatePath,
+        {},
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ metadata }),
+        }
+      );
+    }
+
     return `gs://${result.bucket}/${result.name}`;
   } catch (error) {
     console.error('Error uploading file to GCS:', error);
@@ -321,12 +509,16 @@ export async function saveBase64ToGCS(
   fileType: 'image' | 'video' | string,
   mimeType: string,
   bucketName?: string,
-  prefix = ''
+  prefix = '',
+  metadata?: Record<string, string>
 ): Promise<string> {
-  const extension = mimeType.split('/')[1] || 'bin';
+  let extension = mimeType.split('/')[1] || 'bin';
+  if (mimeType === 'audio/mpeg') {
+    extension = 'mp3';
+  }
   const fileName = `${fileType}-${Date.now()}.${extension}`;
   const file = _base64ToFile(bytesBase64Encoded, fileName, mimeType);
-  return uploadFileToGCS(file, fileName, bucketName, prefix);
+  return uploadFileToGCS(file, fileName, bucketName, prefix, metadata);
 }
 
 type DownloadAs = 'arrayBuffer' | 'blob' | 'json' | 'text';
@@ -416,6 +608,77 @@ export async function deleteFileFromGCS(gcsUri: string): Promise<void> {
     );
   } catch (error) {
     console.error('Error deleting file from GCS:', error);
+    throw error;
+  }
+}
+
+/**
+ * Lists files in a GCS bucket.
+ * @param {string} [bucketName] - The optional name of the bucket to list files from.
+ * @param {string} [prefix] - The optional prefix to filter files by.
+ * @param {string} [delimiter] - The optional delimiter to use for grouping files (e.g., '/').
+ * @return {Promise<FileSystemNode[]>} A promise that resolves with an array of file system nodes.
+ */
+export async function listFiles(
+  bucketName?: string,
+  prefix = '',
+  delimiter = '/'
+): Promise<FileSystemNode[]> {
+  const resolvedBucketName = _getBucketName(bucketName);
+  const path = `${resolvedBucketName}/o`;
+  const params: Record<string, string> = { prefix };
+  if (delimiter) {
+    params.delimiter = delimiter;
+  }
+
+  try {
+    const response = await _gcsApiRequest(
+      GCS_STORAGE_API_BASE_URL,
+      path,
+      params,
+      {
+        method: 'GET',
+      }
+    );
+    const result = await response.json();
+    const nodes: FileSystemNode[] = [];
+
+    if (result.prefixes) {
+      result.prefixes.forEach((p: string) => {
+        const name = p.replace(prefix, '').replace(/\/$/, '');
+        nodes.push({
+          id: p,
+          name,
+          type: 'folder',
+          gcsUri: `gs://${resolvedBucketName}/${p}`,
+        });
+      });
+    }
+
+    if (result.items) {
+      result.items.forEach((item: GcsItem) => {
+        if (item.name !== prefix) {
+          // Exclude the folder itself if it appears as an item
+          const name = item.name.replace(prefix, '');
+          nodes.push({
+            id: `gs://${item.bucket}/${item.name}`,
+            name,
+            type: 'file',
+            gcsUri: `gs://${item.bucket}/${item.name}`,
+            mimeType: item.contentType,
+            size: Number(item.size),
+            updated: item.updated,
+            duration: item.metadata?.duration
+              ? Number(item.metadata.duration)
+              : undefined,
+          });
+        }
+      });
+    }
+
+    return nodes;
+  } catch (error) {
+    console.error('Error listing files:', error);
     throw error;
   }
 }

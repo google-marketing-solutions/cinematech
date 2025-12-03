@@ -51,8 +51,23 @@
             <span @click="selectProject(project)" class="project-name">{{
               project
             }}</span>
-            <button @click.stop="deleteProject(project)" class="delete-btn">
-              <span class="mdi mdi-trash-can-outline"></span>
+            <button
+              @click.stop="copyProject(project)"
+              class="action-btn copy-btn"
+            >
+              <span
+                class="mdi mdi-content-copy"
+                v-tooltip="'Duplicate Project'"
+              ></span>
+            </button>
+            <button
+              @click.stop="deleteProject(project)"
+              class="action-btn delete-btn"
+            >
+              <span
+                class="mdi mdi-trash-can-outline"
+                v-tooltip="'Delete Project'"
+              ></span>
             </button>
           </li>
         </ul>
@@ -119,6 +134,16 @@ const deleteProject = (projectId: string) => {
     projectStore.deleteProject(projectId);
   }
 };
+
+const copyProject = (sourceProjectName: string) => {
+  const destinationProjectName = window.prompt(
+    'Enter the name for the copied project:',
+    `Copy of ${sourceProjectName}`
+  );
+  if (destinationProjectName) {
+    projectStore.copyProject(sourceProjectName, destinationProjectName);
+  }
+};
 </script>
 
 <style scoped>
@@ -154,6 +179,13 @@ const deleteProject = (projectId: string) => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
+}
+.project-list-content > div {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
 }
 .project-list-panel {
   width: 250px;
@@ -220,7 +252,7 @@ h2 {
   text-overflow: ellipsis;
 }
 
-.delete-btn {
+.action-btn {
   background: none;
   border: none;
   color: var(--color-text-secondary);
@@ -229,10 +261,16 @@ h2 {
   border-radius: 50%;
   display: none; /* Hidden by default */
   font-size: 16px;
+  margin-left: 0.5rem;
 }
 
-.project-item:hover .delete-btn {
+.project-item:hover .action-btn {
   display: block; /* Show on hover */
+}
+
+.copy-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-accent);
 }
 
 .delete-btn:hover {

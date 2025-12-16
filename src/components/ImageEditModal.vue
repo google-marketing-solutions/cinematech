@@ -91,7 +91,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { generateImageFromContent } from '@/services/gcp/vertex';
-import type { Content } from '@/types';
+import type { Content, GeminiResponse } from '@/types';
 
 const props = defineProps<{
   show: boolean;
@@ -203,10 +203,10 @@ const sendMessage = async () => {
     const response = await generateImageFromContent(
       contents,
       abortController.value.signal
-    );
+    ) as GeminiResponse;
     const newImage = response.candidates[0].content.parts.findLast(
-      (part: any) => part.inlineData
-    ).inlineData.data;
+      (part) => part.inlineData
+    )!.inlineData!.data;
     displayImageUrl.value = `data:image/jpeg;base64,${newImage}`;
   } catch (error) {
     console.error('Error generating image:', error);

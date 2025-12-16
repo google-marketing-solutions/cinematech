@@ -57,6 +57,8 @@ declare module '@/types' {
   }
 }
 
+import type { GeminiResponse, ImagenResponse } from '@/types';
+
 const generateImageScenePrompt = `
 You will be provided with two inputs:
 1.  A JSON object detailing the 'scene_description' (setting, action, mood, composition).
@@ -168,7 +170,7 @@ export const useStoryStore = defineStore('story', {
         const configStore = useConfigStore();
         const gcsUri = `gs://${configStore.gcsBucketName}/${projectId}/project.json`;
         const rawProjectData = await downloadFileFromGCS(gcsUri, 'json');
-        const projectData = migrateProject(rawProjectData);
+        const projectData = migrateProject(rawProjectData) as Partial<StoryState>;
 
         Object.assign(this, getInitialState());
 
@@ -334,13 +336,13 @@ export const useStoryStore = defineStore('story', {
           configStore.geminiTextModel,
           await formatGuidelines(this.prompt),
           await GuidelinesJsonSchema
-        );
+        ) as GeminiResponse;
         const {
           adSummary,
           writingStyle,
           visualStyle,
           characters = [],
-        } = JSON.parse(res.candidates[0].content.parts[0].text);
+        } = JSON.parse(res.candidates[0].content.parts[0].text || '{}');
         this.summary = adSummary;
         this.writingStyle = writingStyle;
         this.visualStyle = visualStyle || '';
@@ -494,9 +496,9 @@ export const useStoryStore = defineStore('story', {
           configStore.geminiTextModel,
           prompt,
           await SceneJsonSchema
-        );
+        ) as GeminiResponse;
         const newSceneData = JSON.parse(
-          res.candidates[0].content.parts[0].text
+          res.candidates[0].content.parts[0].text || '{}'
         );
 
         // Merge new data with existing scene, preserving ID and media
@@ -832,7 +834,7 @@ export const useStoryStore = defineStore('story', {
         const response = await generateImageFromContent(
           contents,
           controller.signal
-        );
+        ) as GeminiResponse;
 
         const updatedScene = {
           ...scene,
@@ -1018,7 +1020,7 @@ export const useStoryStore = defineStore('story', {
           scene.image,
           'x2',
           controller.signal
-        );
+        ) as ImagenResponse;
         const imageUrl = await saveBase64ToGCS(
           upscaledImage.predictions[0].bytesBase64Encoded,
           'image',
@@ -1089,8 +1091,8 @@ export const useStoryStore = defineStore('story', {
             characters: this.characters,
           }),
           await ScriptJsonSchema
-        );
-        const { scenes } = JSON.parse(res.candidates[0].content.parts[0].text);
+        ) as GeminiResponse;
+        const { scenes } = JSON.parse(res.candidates[0].content.parts[0].text || '{}');
 
         // Map character images to the scenes
         // Map character IDs to full character objects
@@ -1137,7 +1139,7 @@ export const useStoryStore = defineStore('story', {
               'text, watermark, signature, writing, letters, words, logo, brand, cropped, close-up, headshot, portrait, partial body, out of frame',
           },
           controller.signal
-        );
+        ) as ImagenResponse;
         const imageUrl = await saveBase64ToGCS(
           response.predictions[0].bytesBase64Encoded,
           'image',

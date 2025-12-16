@@ -268,3 +268,49 @@ export interface Transition {
     | 'circlecrop';
   icon: string;
 }
+
+/**
+ * Represents a part of the content in a Gemini response.
+ */
+export interface GeminiPart {
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string;
+  };
+}
+
+/**
+ * Represents a candidate in a Gemini response.
+ */
+export interface GeminiCandidate {
+  content: {
+    parts: GeminiPart[];
+    role: string;
+  };
+  finishReason?: string;
+  citationMetadata?: unknown;
+}
+
+/**
+ * Represents the response from the Gemini API.
+ */
+export interface GeminiResponse {
+  candidates: GeminiCandidate[];
+  promptFeedback?: unknown;
+}
+
+/**
+ * Represents a prediction in an Imagen response.
+ */
+export interface ImagenPrediction {
+  bytesBase64Encoded: string;
+  mimeType: string;
+}
+
+/**
+ * Represents the response from the Imagen API.
+ */
+export interface ImagenResponse {
+  predictions: ImagenPrediction[];
+}

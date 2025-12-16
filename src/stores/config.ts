@@ -44,7 +44,7 @@ const initialConfig: ConfigState = {
   gcsBucketName: '',
   gcpLocationId: '',
   vertexImageModel: 'imagen-4.0-ultra-generate-preview-06-06',
-  vertexVideoModel: 'veo-3.0-generate-001',
+  vertexVideoModel: 'veo-3.1-generate-001',
 };
 
 /**

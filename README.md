@@ -33,7 +33,7 @@ To start the development server, run the following command:
 npm run dev
 ```
 
-The application will be available at `http://localhost:5173`.
+The application will be available at `http://localhost:3001`.
 
 ## 📖 How to Use
 
@@ -59,8 +59,8 @@ To use the AI-powered features of this application, you will need to configure i
 
 | Setting | Description |
 | :--- | :--- |
-| **Gemini Text Model** | The name of the Gemini model to use for text generation (e.g., `gemini-2.5-flash-001`). |
-| **Vertex Video Model** | The name of the Vertex AI model for video generation (e.g., `veo-3.0-generate-001`). |
+| **Gemini Text Model** | The name of the Gemini model to use for text generation (e.g., `gemini-2.5-pro`). |
+| **Vertex Video Model** | The name of the Vertex AI model for video generation (e.g., `veo-3.1-generate-001`). |
 | **Vertex Image Model** | The name of the Vertex AI model for image generation (e.g., `imagen-4.0-ultra-generate`). |
 | **Google Cloud Project ID** | Your GCP project ID. |
 | **GCS Bucket Name** | The name of the Google Cloud Storage bucket where your media files will be stored. |

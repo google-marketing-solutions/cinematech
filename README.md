@@ -2,6 +2,18 @@
 
 This is a web-based visual storytelling platform to enable advertisers create text to proffesional video ads at scale
 
+### 🎥 Demo Video
+
+[![Watch the Demo](https://img.youtube.com/vi/ksE_jVgiFIM/0.jpg)](https://www.youtube.com/shorts/ksE_jVgiFIM)
+
+## 📸 Visual Tour
+
+| Projects | Scenes |
+|:---:|:---:|
+| Manage multiple projects | Create storyboards in minutes |
+| ![Projects](public/assets/screenshots/projects.png) | ![Scenes](public/assets/screenshots/scenes.png) |
+
+
 ## 🚀 Getting Started
 
 To get the project up and running on your local machine, follow these simple steps.

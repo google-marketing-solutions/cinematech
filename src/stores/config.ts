@@ -38,7 +38,7 @@ interface ConfigState {
 }
 
 const initialConfig: ConfigState = {
-  geminiTextModel: 'gemini-2.5-pro',
+  geminiTextModel: 'gemini-3.8-flash',
   googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
   googleCloudProjectId: '',
   gcsBucketName: '',

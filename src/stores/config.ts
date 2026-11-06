@@ -38,7 +38,8 @@ interface ConfigState {
 }
 
 const initialConfig: ConfigState = {
-  geminiTextModel: 'gemini-2.5-pro',
+ // Upgraded to gemini-3.8-flash as part of the Gemini 2.5 deprecation migration
+  geminiTextModel: 'gemini-3.8-flash',
   googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
   googleCloudProjectId: '',
   gcsBucketName: '',
